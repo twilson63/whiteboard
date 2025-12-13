@@ -30,6 +30,12 @@ class Whiteboard {
     // Text placement
     this.pendingTextPosition = null;
     
+    // Selection state
+    this.selectedElement = null;
+    this.isDragging = false;
+    this.dragOffsetX = 0;
+    this.dragOffsetY = 0;
+    
     // Initialize
     this.init();
   }
@@ -168,13 +174,24 @@ class Whiteboard {
   selectTool(tool) {
     this.currentTool = tool;
     
+    // Clear selection when switching tools
+    if (tool !== 'select') {
+      this.selectedElement = null;
+      this.redraw();
+    }
+    
     // Update UI
     document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tool === tool);
     });
     
     // Update cursor mode
-    this.canvasContainer.classList.toggle('eraser-mode', tool === 'eraser');
+    this.canvasContainer.classList.remove('eraser-mode', 'select-mode', 'dragging');
+    if (tool === 'eraser') {
+      this.canvasContainer.classList.add('eraser-mode');
+    } else if (tool === 'select') {
+      this.canvasContainer.classList.add('select-mode');
+    }
   }
 
   selectColor(color) {
@@ -252,7 +269,10 @@ class Whiteboard {
     this.startX = point.x;
     this.startY = point.y;
     
-    if (this.currentTool === 'pen') {
+    if (this.currentTool === 'select') {
+      this.handleSelectStart(point);
+      this.isDrawing = false;
+    } else if (this.currentTool === 'pen') {
       this.currentPath = [{ x: point.x, y: point.y }];
     } else if (this.currentTool === 'eraser') {
       this.eraseAt(point);
@@ -272,6 +292,12 @@ class Whiteboard {
   }
 
   continueDrawing(point) {
+    // Handle dragging for select tool
+    if (this.currentTool === 'select' && this.isDragging) {
+      this.handleSelectDrag(point);
+      return;
+    }
+    
     if (!this.isDrawing) return;
     
     if (this.currentTool === 'pen') {
@@ -287,6 +313,12 @@ class Whiteboard {
   }
 
   endDrawing(point) {
+    // Handle end of dragging for select tool
+    if (this.currentTool === 'select' && this.isDragging) {
+      this.handleSelectEnd(point);
+      return;
+    }
+    
     if (!this.isDrawing) return;
     this.isDrawing = false;
     
@@ -358,6 +390,11 @@ class Whiteboard {
     this.elements.forEach(element => {
       this.drawElement(element);
     });
+    
+    // Draw selection box if an element is selected
+    if (this.selectedElement) {
+      this.drawSelectionBox(this.selectedElement);
+    }
   }
 
   drawElement(element) {
@@ -510,6 +547,180 @@ class Whiteboard {
       this.ctx.arc(this.startX, this.startY, radius, 0, Math.PI * 2);
       this.ctx.stroke();
     }
+  }
+
+  // ============================================================
+  // Selection and Dragging
+  // ============================================================
+
+  handleSelectStart(point) {
+    // Check if clicking on an element
+    const element = this.getElementAtPoint(point);
+    
+    if (element) {
+      this.selectedElement = element;
+      this.isDragging = true;
+      this.canvasContainer.classList.add('dragging');
+      
+      // Calculate offset from element origin to click point
+      const bounds = this.getElementBounds(element);
+      this.dragOffsetX = point.x - bounds.x;
+      this.dragOffsetY = point.y - bounds.y;
+    } else {
+      // Clicked on empty space - deselect
+      this.selectedElement = null;
+    }
+    
+    this.redraw();
+  }
+
+  handleSelectDrag(point) {
+    if (!this.selectedElement || !this.isDragging) return;
+    
+    const newX = point.x - this.dragOffsetX;
+    const newY = point.y - this.dragOffsetY;
+    
+    this.moveElement(this.selectedElement, newX, newY);
+    this.redraw();
+  }
+
+  handleSelectEnd(point) {
+    if (this.isDragging && this.selectedElement) {
+      // Send move update to other clients
+      this.sendMessage({
+        type: 'move',
+        elementId: this.selectedElement.id,
+        element: this.selectedElement
+      });
+    }
+    
+    this.isDragging = false;
+    this.canvasContainer.classList.remove('dragging');
+  }
+
+  getElementAtPoint(point) {
+    // Check elements in reverse order (top to bottom)
+    for (let i = this.elements.length - 1; i >= 0; i--) {
+      const element = this.elements[i];
+      if (this.isPointNearElement(point, element, 5)) {
+        return element;
+      }
+    }
+    return null;
+  }
+
+  getElementBounds(element) {
+    switch (element.type) {
+      case 'pen':
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const p of element.points) {
+          minX = Math.min(minX, p.x);
+          minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x);
+          maxY = Math.max(maxY, p.y);
+        }
+        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+      
+      case 'line':
+        return {
+          x: Math.min(element.x1, element.x2),
+          y: Math.min(element.y1, element.y2),
+          width: Math.abs(element.x2 - element.x1),
+          height: Math.abs(element.y2 - element.y1)
+        };
+      
+      case 'rectangle':
+      case 'note':
+        return { x: element.x, y: element.y, width: element.width, height: element.height };
+      
+      case 'circle':
+        return {
+          x: element.cx - element.radius,
+          y: element.cy - element.radius,
+          width: element.radius * 2,
+          height: element.radius * 2
+        };
+      
+      case 'text':
+        this.ctx.font = `${element.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+        const textWidth = this.ctx.measureText(element.text).width;
+        return { x: element.x, y: element.y, width: textWidth, height: element.fontSize * 1.2 };
+      
+      default:
+        return { x: 0, y: 0, width: 0, height: 0 };
+    }
+  }
+
+  moveElement(element, newX, newY) {
+    const bounds = this.getElementBounds(element);
+    const deltaX = newX - bounds.x;
+    const deltaY = newY - bounds.y;
+    
+    switch (element.type) {
+      case 'pen':
+        for (const p of element.points) {
+          p.x += deltaX;
+          p.y += deltaY;
+        }
+        break;
+      
+      case 'line':
+        element.x1 += deltaX;
+        element.y1 += deltaY;
+        element.x2 += deltaX;
+        element.y2 += deltaY;
+        break;
+      
+      case 'rectangle':
+      case 'note':
+      case 'text':
+        element.x = newX;
+        element.y = newY;
+        break;
+      
+      case 'circle':
+        element.cx += deltaX;
+        element.cy += deltaY;
+        break;
+    }
+  }
+
+  drawSelectionBox(element) {
+    const bounds = this.getElementBounds(element);
+    const padding = 5;
+    
+    this.ctx.save();
+    this.ctx.strokeStyle = '#3498db';
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([5, 5]);
+    this.ctx.strokeRect(
+      bounds.x - padding,
+      bounds.y - padding,
+      bounds.width + padding * 2,
+      bounds.height + padding * 2
+    );
+    
+    // Draw corner handles
+    this.ctx.fillStyle = '#3498db';
+    this.ctx.setLineDash([]);
+    const handleSize = 8;
+    const corners = [
+      { x: bounds.x - padding, y: bounds.y - padding },
+      { x: bounds.x + bounds.width + padding, y: bounds.y - padding },
+      { x: bounds.x - padding, y: bounds.y + bounds.height + padding },
+      { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding }
+    ];
+    
+    for (const corner of corners) {
+      this.ctx.fillRect(
+        corner.x - handleSize / 2,
+        corner.y - handleSize / 2,
+        handleSize,
+        handleSize
+      );
+    }
+    
+    this.ctx.restore();
   }
 
   // ============================================================
@@ -744,6 +955,15 @@ class Whiteboard {
       case 'clear':
         this.elements = [];
         this.redraw();
+        break;
+      
+      case 'move':
+        // Update the moved element
+        const index = this.elements.findIndex(el => el.id === message.elementId);
+        if (index !== -1) {
+          this.elements[index] = message.element;
+          this.redraw();
+        }
         break;
         
       case 'userCount':

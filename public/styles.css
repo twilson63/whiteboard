@@ -415,6 +415,15 @@ body {
   cursor: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8L14.8 1.4c.8-.8 2-.8 2.8 0l5 5c.8.8.8 2 0 2.8L11 20"/></svg>') 12 12, crosshair;
 }
 
+/* Select mode cursor */
+.canvas-container.select-mode #whiteboard {
+  cursor: default;
+}
+
+.canvas-container.select-mode.dragging #whiteboard {
+  cursor: move;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .header {

@@ -184,6 +184,25 @@ function handleMessage(ws, session, message) {
       }, ws);
       break;
 
+    case 'move':
+      // Update element position in session state
+      const elementIndex = session.elements.findIndex(el => el.id === message.elementId);
+      if (elementIndex !== -1) {
+        session.elements[elementIndex] = {
+          ...message.element,
+          movedBy: ws.userId,
+          movedAt: Date.now()
+        };
+        
+        // Broadcast to other clients
+        broadcast(session, {
+          type: 'move',
+          elementId: message.elementId,
+          element: session.elements[elementIndex]
+        }, ws);
+      }
+      break;
+
     default:
       console.warn('Unknown message type:', message.type);
   }
