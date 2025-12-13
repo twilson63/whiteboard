@@ -88,7 +88,7 @@ app.post('/api/sessions/:sessionId/elements', (req, res) => {
     return res.status(400).json({ error: 'Element type is required' });
   }
   
-  const validTypes = ['rect', 'circle', 'line', 'pen', 'text', 'note'];
+  const validTypes = ['rectangle', 'circle', 'line', 'pen', 'text', 'note'];
   if (!validTypes.includes(elementData.type)) {
     return res.status(400).json({ 
       error: `Invalid element type. Must be one of: ${validTypes.join(', ')}` 
@@ -125,7 +125,7 @@ app.post('/api/sessions/:sessionId/elements/batch', (req, res) => {
     return res.status(400).json({ error: 'Request body must be an array of elements' });
   }
   
-  const validTypes = ['rect', 'circle', 'line', 'pen', 'text', 'note'];
+  const validTypes = ['rectangle', 'circle', 'line', 'pen', 'text', 'note'];
   const createdElements = [];
   
   for (const elementData of elementsData) {
@@ -241,43 +241,46 @@ app.get('/api/schema', (req, res) => {
   res.json({
     description: 'Whiteboard element schemas',
     types: {
-      rect: {
+      rectangle: {
         description: 'Rectangle shape',
         required: ['type', 'x', 'y', 'width', 'height'],
         properties: {
-          type: { type: 'string', value: 'rect' },
+          type: { type: 'string', value: 'rectangle' },
           x: { type: 'number', description: 'X position of top-left corner' },
           y: { type: 'number', description: 'Y position of top-left corner' },
           width: { type: 'number', description: 'Width of rectangle' },
           height: { type: 'number', description: 'Height of rectangle' },
-          color: { type: 'string', default: '#000000', description: 'Stroke color (hex)' }
+          color: { type: 'string', default: '#000000', description: 'Stroke color (hex)' },
+          strokeWidth: { type: 'number', default: 2, description: 'Stroke width in pixels' }
         },
-        example: { type: 'rect', x: 100, y: 100, width: 200, height: 150, color: '#3498db' }
+        example: { type: 'rectangle', x: 100, y: 100, width: 200, height: 150, color: '#3498db', strokeWidth: 2 }
       },
       circle: {
         description: 'Circle shape',
-        required: ['type', 'x', 'y', 'radius'],
+        required: ['type', 'cx', 'cy', 'radius'],
         properties: {
           type: { type: 'string', value: 'circle' },
-          x: { type: 'number', description: 'X position of center' },
-          y: { type: 'number', description: 'Y position of center' },
+          cx: { type: 'number', description: 'X position of center' },
+          cy: { type: 'number', description: 'Y position of center' },
           radius: { type: 'number', description: 'Radius of circle' },
-          color: { type: 'string', default: '#000000', description: 'Stroke color (hex)' }
+          color: { type: 'string', default: '#000000', description: 'Stroke color (hex)' },
+          strokeWidth: { type: 'number', default: 2, description: 'Stroke width in pixels' }
         },
-        example: { type: 'circle', x: 200, y: 200, radius: 50, color: '#e74c3c' }
+        example: { type: 'circle', cx: 200, cy: 200, radius: 50, color: '#e74c3c', strokeWidth: 2 }
       },
       line: {
         description: 'Straight line',
-        required: ['type', 'startX', 'startY', 'endX', 'endY'],
+        required: ['type', 'x1', 'y1', 'x2', 'y2'],
         properties: {
           type: { type: 'string', value: 'line' },
-          startX: { type: 'number', description: 'Starting X position' },
-          startY: { type: 'number', description: 'Starting Y position' },
-          endX: { type: 'number', description: 'Ending X position' },
-          endY: { type: 'number', description: 'Ending Y position' },
-          color: { type: 'string', default: '#000000', description: 'Line color (hex)' }
+          x1: { type: 'number', description: 'Starting X position' },
+          y1: { type: 'number', description: 'Starting Y position' },
+          x2: { type: 'number', description: 'Ending X position' },
+          y2: { type: 'number', description: 'Ending Y position' },
+          color: { type: 'string', default: '#000000', description: 'Line color (hex)' },
+          strokeWidth: { type: 'number', default: 2, description: 'Stroke width in pixels' }
         },
-        example: { type: 'line', startX: 50, startY: 50, endX: 200, endY: 150, color: '#2ecc71' }
+        example: { type: 'line', x1: 50, y1: 50, x2: 200, y2: 150, color: '#2ecc71', strokeWidth: 2 }
       },
       pen: {
         description: 'Freehand drawing (series of points)',
@@ -285,9 +288,10 @@ app.get('/api/schema', (req, res) => {
         properties: {
           type: { type: 'string', value: 'pen' },
           points: { type: 'array', items: { type: 'object', properties: { x: 'number', y: 'number' } }, description: 'Array of {x, y} points' },
-          color: { type: 'string', default: '#000000', description: 'Stroke color (hex)' }
+          color: { type: 'string', default: '#000000', description: 'Stroke color (hex)' },
+          strokeWidth: { type: 'number', default: 2, description: 'Stroke width in pixels' }
         },
-        example: { type: 'pen', points: [{ x: 10, y: 10 }, { x: 15, y: 20 }, { x: 25, y: 15 }], color: '#9b59b6' }
+        example: { type: 'pen', points: [{ x: 10, y: 10 }, { x: 15, y: 20 }, { x: 25, y: 15 }], color: '#9b59b6', strokeWidth: 2 }
       },
       text: {
         description: 'Text element',
@@ -304,15 +308,17 @@ app.get('/api/schema', (req, res) => {
       },
       note: {
         description: 'Sticky note with text',
-        required: ['type', 'x', 'y', 'text'],
+        required: ['type', 'x', 'y', 'text', 'width', 'height'],
         properties: {
           type: { type: 'string', value: 'note' },
           x: { type: 'number', description: 'X position of top-left corner' },
           y: { type: 'number', description: 'Y position of top-left corner' },
+          width: { type: 'number', default: 150, description: 'Width of note' },
+          height: { type: 'number', default: 100, description: 'Height of note' },
           text: { type: 'string', description: 'Note content' },
-          color: { type: 'string', default: '#f1c40f', description: 'Background color (hex)' }
+          backgroundColor: { type: 'string', default: '#fff9c4', description: 'Background color (hex)' }
         },
-        example: { type: 'note', x: 300, y: 100, text: 'Remember this!', color: '#f1c40f' }
+        example: { type: 'note', x: 300, y: 100, width: 150, height: 100, text: 'Remember this!', backgroundColor: '#fff9c4' }
       }
     },
     endpoints: {
