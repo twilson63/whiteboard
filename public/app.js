@@ -264,6 +264,10 @@ class Whiteboard {
     document.getElementById('zoomOutBtn').addEventListener('click', () => this.zoomOut());
     document.getElementById('zoomResetBtn').addEventListener('click', () => this.resetZoom());
     
+    // Export buttons
+    document.getElementById('exportPngBtn').addEventListener('click', () => this.exportAsPng());
+    document.getElementById('exportSvgBtn').addEventListener('click', () => this.exportAsSvg());
+    
     // Close modals on backdrop click
     document.querySelectorAll('.modal').forEach(modal => {
       modal.addEventListener('click', (e) => {
@@ -1371,6 +1375,220 @@ class Whiteboard {
     this.sendMessage({ type: 'clear' });
     this.redraw();
     this.showToast('Whiteboard cleared');
+  }
+
+  // ============================================================
+  // Export
+  // ============================================================
+
+  getCanvasBounds() {
+    if (this.elements.length === 0) {
+      return { minX: 0, minY: 0, maxX: 800, maxY: 600 };
+    }
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    for (const element of this.elements) {
+      const bounds = this.getElementBounds(element);
+      minX = Math.min(minX, bounds.x);
+      minY = Math.min(minY, bounds.y);
+      maxX = Math.max(maxX, bounds.x + bounds.width);
+      maxY = Math.max(maxY, bounds.y + bounds.height);
+    }
+    
+    // Add padding
+    const padding = 20;
+    return {
+      minX: minX - padding,
+      minY: minY - padding,
+      maxX: maxX + padding,
+      maxY: maxY + padding
+    };
+  }
+
+  exportAsPng() {
+    if (this.elements.length === 0) {
+      this.showToast('Nothing to export');
+      return;
+    }
+    
+    const bounds = this.getCanvasBounds();
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    
+    // Create a temporary canvas
+    const tempCanvas = document.createElement('canvas');
+    const dpr = window.devicePixelRatio || 1;
+    tempCanvas.width = width * dpr;
+    tempCanvas.height = height * dpr;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Set white background
+    tempCtx.fillStyle = '#ffffff';
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    
+    // Apply DPR scaling and translate to center content
+    tempCtx.scale(dpr, dpr);
+    tempCtx.translate(-bounds.minX, -bounds.minY);
+    
+    // Draw all elements
+    for (const element of this.elements) {
+      this.drawElementToContext(tempCtx, element);
+    }
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.download = `whiteboard-${this.sessionId}.png`;
+    link.href = tempCanvas.toDataURL('image/png');
+    link.click();
+    
+    this.showToast('Exported as PNG');
+  }
+
+  exportAsSvg() {
+    if (this.elements.length === 0) {
+      this.showToast('Nothing to export');
+      return;
+    }
+    
+    const bounds = this.getCanvasBounds();
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+    
+    // Start building SVG
+    let svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${bounds.minX} ${bounds.minY} ${width} ${height}">
+  <rect x="${bounds.minX}" y="${bounds.minY}" width="${width}" height="${height}" fill="white"/>
+`;
+    
+    // Convert each element to SVG
+    for (const element of this.elements) {
+      svg += this.elementToSvg(element);
+    }
+    
+    svg += '</svg>';
+    
+    // Create download link
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const link = document.createElement('a');
+    link.download = `whiteboard-${this.sessionId}.svg`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+    
+    this.showToast('Exported as SVG');
+  }
+
+  drawElementToContext(ctx, element) {
+    ctx.strokeStyle = element.color;
+    ctx.fillStyle = element.color;
+    ctx.lineWidth = element.strokeWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    switch (element.type) {
+      case 'pen':
+        if (element.points.length < 2) return;
+        ctx.beginPath();
+        ctx.moveTo(element.points[0].x, element.points[0].y);
+        for (let i = 1; i < element.points.length; i++) {
+          ctx.lineTo(element.points[i].x, element.points[i].y);
+        }
+        ctx.stroke();
+        break;
+        
+      case 'line':
+        ctx.beginPath();
+        ctx.moveTo(element.x1, element.y1);
+        ctx.lineTo(element.x2, element.y2);
+        ctx.stroke();
+        break;
+        
+      case 'rectangle':
+        ctx.beginPath();
+        ctx.strokeRect(element.x, element.y, element.width, element.height);
+        break;
+        
+      case 'circle':
+        ctx.beginPath();
+        ctx.arc(element.cx, element.cy, element.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+        
+      case 'note':
+        // Draw note background
+        ctx.fillStyle = element.backgroundColor || '#fff9c4';
+        ctx.fillRect(element.x, element.y, element.width, element.height);
+        ctx.strokeStyle = '#f0e68c';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(element.x, element.y, element.width, element.height);
+        
+        // Draw note text
+        ctx.fillStyle = '#333';
+        ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+        const padding = 10;
+        const lineHeight = 18;
+        const maxWidth = element.width - padding * 2;
+        const words = element.text.split(' ');
+        let line = '';
+        let y = element.y + padding + 14;
+        
+        for (const word of words) {
+          const testLine = line + word + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > maxWidth && line !== '') {
+            ctx.fillText(line, element.x + padding, y);
+            line = word + ' ';
+            y += lineHeight;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line, element.x + padding, y);
+        break;
+        
+      case 'text':
+        ctx.fillStyle = element.color;
+        ctx.font = `${element.fontSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+        ctx.textBaseline = 'top';
+        ctx.fillText(element.text, element.x, element.y);
+        break;
+    }
+  }
+
+  elementToSvg(element) {
+    const escape = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    
+    switch (element.type) {
+      case 'pen':
+        if (element.points.length < 2) return '';
+        const pathData = element.points.map((p, i) => 
+          (i === 0 ? 'M' : 'L') + `${p.x},${p.y}`
+        ).join(' ');
+        return `  <path d="${pathData}" stroke="${element.color}" stroke-width="${element.strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>\n`;
+        
+      case 'line':
+        return `  <line x1="${element.x1}" y1="${element.y1}" x2="${element.x2}" y2="${element.y2}" stroke="${element.color}" stroke-width="${element.strokeWidth}" stroke-linecap="round"/>\n`;
+        
+      case 'rectangle':
+        return `  <rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" stroke="${element.color}" stroke-width="${element.strokeWidth}" fill="none"/>\n`;
+        
+      case 'circle':
+        return `  <circle cx="${element.cx}" cy="${element.cy}" r="${element.radius}" stroke="${element.color}" stroke-width="${element.strokeWidth}" fill="none"/>\n`;
+        
+      case 'note':
+        const bg = element.backgroundColor || '#fff9c4';
+        return `  <g>
+    <rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" fill="${bg}" stroke="#f0e68c" stroke-width="1"/>
+    <text x="${element.x + 10}" y="${element.y + 24}" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="14" fill="#333">${escape(element.text)}</text>
+  </g>\n`;
+        
+      case 'text':
+        return `  <text x="${element.x}" y="${element.y}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="${element.fontSize}" fill="${element.color}" dominant-baseline="hanging">${escape(element.text)}</text>\n`;
+        
+      default:
+        return '';
+    }
   }
 
   // ============================================================
