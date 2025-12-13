@@ -52,6 +52,12 @@ class Whiteboard {
     this.panStartY = 0;
     this.spacePressed = false;
     
+    // Remote cursors
+    this.remoteCursors = new Map();
+    this.cursorColors = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#16a085'];
+    this.cursorUpdateThrottle = 50; // ms
+    this.lastCursorUpdate = 0;
+    
     // Initialize
     this.init();
   }
@@ -370,7 +376,25 @@ class Whiteboard {
     }
     
     const point = this.getCanvasPoint(e);
+    
+    // Send cursor position to other users (throttled)
+    this.sendCursorPosition(point);
+    
     this.continueDrawing(point);
+  }
+  
+  sendCursorPosition(point) {
+    const now = Date.now();
+    if (now - this.lastCursorUpdate < this.cursorUpdateThrottle) {
+      return;
+    }
+    this.lastCursorUpdate = now;
+    
+    this.sendMessage({
+      type: 'cursor',
+      x: point.x,
+      y: point.y
+    });
   }
 
   handleMouseUp(e) {
@@ -556,6 +580,77 @@ class Whiteboard {
     if (this.selectedElement) {
       this.drawSelectionBox(this.selectedElement);
     }
+    
+    // Draw remote cursors
+    this.drawRemoteCursors();
+  }
+  
+  drawRemoteCursors() {
+    const now = Date.now();
+    
+    this.remoteCursors.forEach((cursor, oderId) => {
+      // Skip cursors that haven't been updated in 5 seconds
+      if (now - cursor.lastUpdate > 5000) {
+        this.remoteCursors.delete(oderId);
+        return;
+      }
+      
+      this.drawCursor(cursor.x, cursor.y, cursor.color, cursor.userId);
+    });
+  }
+  
+  drawCursor(x, y, color, label) {
+    this.ctx.save();
+    
+    // Draw cursor arrow
+    this.ctx.fillStyle = color;
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 1.5 / this.scale;
+    
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y);
+    this.ctx.lineTo(x, y + 18 / this.scale);
+    this.ctx.lineTo(x + 5 / this.scale, y + 14 / this.scale);
+    this.ctx.lineTo(x + 10 / this.scale, y + 22 / this.scale);
+    this.ctx.lineTo(x + 13 / this.scale, y + 20 / this.scale);
+    this.ctx.lineTo(x + 8 / this.scale, y + 12 / this.scale);
+    this.ctx.lineTo(x + 14 / this.scale, y + 12 / this.scale);
+    this.ctx.closePath();
+    
+    this.ctx.fill();
+    this.ctx.stroke();
+    
+    // Draw label background
+    const fontSize = 11 / this.scale;
+    this.ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+    const labelWidth = this.ctx.measureText(label).width + 8 / this.scale;
+    const labelHeight = 16 / this.scale;
+    const labelX = x + 16 / this.scale;
+    const labelY = y + 12 / this.scale;
+    
+    // Rounded rectangle background
+    const radius = 4 / this.scale;
+    this.ctx.beginPath();
+    this.ctx.moveTo(labelX + radius, labelY);
+    this.ctx.lineTo(labelX + labelWidth - radius, labelY);
+    this.ctx.quadraticCurveTo(labelX + labelWidth, labelY, labelX + labelWidth, labelY + radius);
+    this.ctx.lineTo(labelX + labelWidth, labelY + labelHeight - radius);
+    this.ctx.quadraticCurveTo(labelX + labelWidth, labelY + labelHeight, labelX + labelWidth - radius, labelY + labelHeight);
+    this.ctx.lineTo(labelX + radius, labelY + labelHeight);
+    this.ctx.quadraticCurveTo(labelX, labelY + labelHeight, labelX, labelY + labelHeight - radius);
+    this.ctx.lineTo(labelX, labelY + radius);
+    this.ctx.quadraticCurveTo(labelX, labelY, labelX + radius, labelY);
+    this.ctx.closePath();
+    
+    this.ctx.fillStyle = color;
+    this.ctx.fill();
+    
+    // Draw label text
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(label, labelX + 4 / this.scale, labelY + labelHeight / 2);
+    
+    this.ctx.restore();
   }
 
   drawElement(element) {
@@ -1677,7 +1772,39 @@ class Whiteboard {
       case 'userCount':
         this.updateUserCount(message.count);
         break;
+        
+      case 'cursor':
+        // Update remote cursor position
+        if (message.oderId !== this.userId) {
+          const colorIndex = this.hashCode(message.oderId) % this.cursorColors.length;
+          this.remoteCursors.set(message.oderId, {
+            oderId: message.oderId,
+            userId: message.oderId.substring(0, 4), // Short display name
+            x: message.x,
+            y: message.y,
+            color: this.cursorColors[colorIndex],
+            lastUpdate: Date.now()
+          });
+          this.redraw();
+        }
+        break;
+        
+      case 'userLeft':
+        // Remove cursor when user leaves
+        this.remoteCursors.delete(message.oderId);
+        this.redraw();
+        break;
     }
+  }
+  
+  hashCode(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash);
   }
 
   // ============================================================

@@ -115,10 +115,16 @@ wss.on('connection', (ws, req) => {
     session.clients.delete(ws);
     console.log(`User ${userId} left session ${sessionId}. Total users: ${session.clients.size}`);
 
-    // Notify remaining clients
+    // Notify remaining clients of user count
     broadcastAll(session, {
       type: 'userCount',
       count: session.clients.size
+    });
+    
+    // Notify remaining clients that this user left (for cursor cleanup)
+    broadcast(session, {
+      type: 'userLeft',
+      oderId: userId
     });
 
     // Clean up empty sessions after a delay
@@ -178,7 +184,7 @@ function handleMessage(ws, session, message) {
       // Broadcast cursor position to other clients
       broadcast(session, {
         type: 'cursor',
-        userId: ws.userId,
+        oderId: ws.userId,
         x: message.x,
         y: message.y
       }, ws);
