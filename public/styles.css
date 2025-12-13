@@ -434,6 +434,23 @@ body {
   cursor: move;
 }
 
+/* Pan mode cursor */
+.canvas-container.pan-mode #whiteboard {
+  cursor: grab;
+}
+
+.canvas-container.panning #whiteboard {
+  cursor: grabbing;
+}
+
+/* Zoom level display */
+.zoom-level {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  margin-top: 4px;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .header {

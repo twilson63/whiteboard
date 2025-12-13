@@ -41,6 +41,17 @@ class Whiteboard {
     this.redoStack = [];
     this.maxHistorySize = 50;
     
+    // Zoom and Pan state
+    this.scale = 1;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.minScale = 0.1;
+    this.maxScale = 5;
+    this.isPanning = false;
+    this.panStartX = 0;
+    this.panStartY = 0;
+    this.spacePressed = false;
+    
     // Initialize
     this.init();
   }
@@ -56,6 +67,7 @@ class Whiteboard {
     this.connectWebSocket();
     this.updateSessionDisplay();
     this.updateUndoRedoButtons();
+    this.updateZoomDisplay();
   }
 
   // ============================================================
@@ -76,7 +88,7 @@ class Whiteboard {
     this.canvas.style.width = rect.width + 'px';
     this.canvas.style.height = rect.height + 'px';
     
-    this.ctx.scale(dpr, dpr);
+    // Don't scale here - redraw handles the transform
     this.redraw();
   }
 
@@ -181,7 +193,7 @@ class Whiteboard {
       this.redo();
     });
     
-    // Keyboard shortcuts for undo/redo
+    // Keyboard shortcuts for undo/redo and pan
     document.addEventListener('keydown', (e) => {
       // Check if we're in a text input
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -201,7 +213,56 @@ class Whiteboard {
         e.preventDefault();
         this.redo();
       }
+      
+      // Space key for pan mode
+      if (e.code === 'Space' && !this.spacePressed) {
+        this.spacePressed = true;
+        this.canvasContainer.classList.add('pan-mode');
+      }
+      
+      // Keyboard zoom shortcuts
+      if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        this.zoomIn();
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+        e.preventDefault();
+        this.zoomOut();
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        this.resetZoom();
+      }
     });
+    
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') {
+        this.spacePressed = false;
+        this.canvasContainer.classList.remove('pan-mode');
+        if (this.isPanning) {
+          this.isPanning = false;
+        }
+      }
+    });
+    
+    // Mouse wheel zoom
+    this.canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = this.canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      // Zoom towards mouse position
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      this.zoomAtPoint(mouseX, mouseY, zoomFactor);
+    }, { passive: false });
+    
+    // Zoom buttons
+    document.getElementById('zoomInBtn').addEventListener('click', () => this.zoomIn());
+    document.getElementById('zoomOutBtn').addEventListener('click', () => this.zoomOut());
+    document.getElementById('zoomResetBtn').addEventListener('click', () => this.resetZoom());
     
     // Close modals on backdrop click
     document.querySelectorAll('.modal').forEach(modal => {
@@ -262,23 +323,60 @@ class Whiteboard {
 
   getCanvasPoint(e) {
     const rect = this.canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+    
+    // Convert screen coordinates to canvas coordinates (accounting for zoom and pan)
     return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      x: (screenX - this.offsetX) / this.scale,
+      y: (screenY - this.offsetY) / this.scale
+    };
+  }
+  
+  getScreenPoint(canvasX, canvasY) {
+    // Convert canvas coordinates to screen coordinates
+    return {
+      x: canvasX * this.scale + this.offsetX,
+      y: canvasY * this.scale + this.offsetY
     };
   }
 
   handleMouseDown(e) {
+    // Handle pan mode (space + drag or middle mouse button)
+    if (this.spacePressed || e.button === 1) {
+      this.isPanning = true;
+      this.panStartX = e.clientX - this.offsetX;
+      this.panStartY = e.clientY - this.offsetY;
+      this.canvasContainer.classList.add('panning');
+      e.preventDefault();
+      return;
+    }
+    
     const point = this.getCanvasPoint(e);
     this.startDrawing(point);
   }
 
   handleMouseMove(e) {
+    // Handle panning
+    if (this.isPanning) {
+      this.offsetX = e.clientX - this.panStartX;
+      this.offsetY = e.clientY - this.panStartY;
+      this.redraw();
+      return;
+    }
+    
     const point = this.getCanvasPoint(e);
     this.continueDrawing(point);
   }
 
   handleMouseUp(e) {
+    // End panning
+    if (this.isPanning) {
+      this.isPanning = false;
+      this.canvasContainer.classList.remove('panning');
+      return;
+    }
+    
     const point = this.getCanvasPoint(e);
     this.endDrawing(point);
   }
@@ -432,7 +530,19 @@ class Whiteboard {
 
   redraw() {
     const rect = this.canvasContainer.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Clear the entire canvas
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.ctx.clearRect(0, 0, rect.width, rect.height);
+    
+    // Apply zoom and pan transformations
+    this.ctx.setTransform(
+      dpr * this.scale, 0, 0, 
+      dpr * this.scale, 
+      dpr * this.offsetX, 
+      dpr * this.offsetY
+    );
     
     this.elements.forEach(element => {
       this.drawElement(element);
@@ -785,6 +895,56 @@ class Whiteboard {
     }
     
     this.ctx.restore();
+  }
+
+  // ============================================================
+  // Zoom and Pan
+  // ============================================================
+
+  zoomIn() {
+    const rect = this.canvasContainer.getBoundingClientRect();
+    this.zoomAtPoint(rect.width / 2, rect.height / 2, 1.2);
+  }
+
+  zoomOut() {
+    const rect = this.canvasContainer.getBoundingClientRect();
+    this.zoomAtPoint(rect.width / 2, rect.height / 2, 0.8);
+  }
+
+  zoomAtPoint(screenX, screenY, factor) {
+    const newScale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * factor));
+    
+    if (newScale === this.scale) return;
+    
+    // Calculate the canvas point at the mouse position before zoom
+    const canvasX = (screenX - this.offsetX) / this.scale;
+    const canvasY = (screenY - this.offsetY) / this.scale;
+    
+    // Apply new scale
+    this.scale = newScale;
+    
+    // Adjust offset so the same canvas point stays under the mouse
+    this.offsetX = screenX - canvasX * this.scale;
+    this.offsetY = screenY - canvasY * this.scale;
+    
+    this.updateZoomDisplay();
+    this.redraw();
+  }
+
+  resetZoom() {
+    this.scale = 1;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.updateZoomDisplay();
+    this.redraw();
+    this.showToast('Zoom reset');
+  }
+
+  updateZoomDisplay() {
+    const zoomLevel = document.getElementById('zoomLevel');
+    if (zoomLevel) {
+      zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
+    }
   }
 
   // ============================================================
