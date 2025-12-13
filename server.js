@@ -334,6 +334,238 @@ app.get('/api/schema', (req, res) => {
   });
 });
 
+// GET /api/agent - Comprehensive agent instructions endpoint
+app.get('/api/agent', (req, res) => {
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  
+  res.json({
+    name: "Whiteboard API",
+    version: "1.0.0",
+    description: "A collaborative whiteboard API that allows agents to create, read, update, and delete drawings. All changes sync in real-time to connected browser clients via WebSocket.",
+    
+    baseUrl: baseUrl,
+    
+    quickStart: {
+      description: "To get started, create a session and add elements to it.",
+      steps: [
+        "1. Choose a session ID (any alphanumeric string) or use an existing one",
+        "2. POST elements to /api/sessions/{sessionId}/elements",
+        "3. View the whiteboard at {baseUrl}/{sessionId}",
+        "4. All changes appear instantly in connected browsers"
+      ],
+      example: {
+        description: "Draw a simple rectangle",
+        request: {
+          method: "POST",
+          url: `${baseUrl}/api/sessions/my-session/elements`,
+          headers: { "Content-Type": "application/json" },
+          body: { type: "rectangle", x: 100, y: 100, width: 200, height: 150, color: "#3498db", strokeWidth: 2 }
+        },
+        viewAt: `${baseUrl}/my-session`
+      }
+    },
+    
+    coordinateSystem: {
+      description: "The canvas uses a standard 2D coordinate system",
+      origin: "Top-left corner of the canvas (0, 0)",
+      xAxis: "Increases to the right",
+      yAxis: "Increases downward",
+      recommendedBounds: {
+        description: "For best visibility, keep drawings within these bounds",
+        x: { min: 100, max: 800 },
+        y: { min: 80, max: 500 }
+      }
+    },
+    
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/sessions/{sessionId}",
+        description: "Get session info including all elements",
+        response: { id: "string", elementCount: "number", elements: "array", userCount: "number", createdAt: "timestamp" }
+      },
+      {
+        method: "GET",
+        path: "/api/sessions/{sessionId}/elements",
+        description: "Get all elements in a session",
+        response: "array of elements"
+      },
+      {
+        method: "GET", 
+        path: "/api/sessions/{sessionId}/elements/{elementId}",
+        description: "Get a specific element by ID",
+        response: "element object"
+      },
+      {
+        method: "POST",
+        path: "/api/sessions/{sessionId}/elements",
+        description: "Create a single element",
+        body: "element object (without id)",
+        response: "created element with id"
+      },
+      {
+        method: "POST",
+        path: "/api/sessions/{sessionId}/elements/batch",
+        description: "Create multiple elements at once (recommended for complex drawings)",
+        body: "array of element objects",
+        response: "array of created elements with ids"
+      },
+      {
+        method: "PUT",
+        path: "/api/sessions/{sessionId}/elements/{elementId}",
+        description: "Update an existing element",
+        body: "partial element object with properties to update",
+        response: "updated element"
+      },
+      {
+        method: "DELETE",
+        path: "/api/sessions/{sessionId}/elements/{elementId}",
+        description: "Delete a specific element",
+        response: "204 No Content"
+      },
+      {
+        method: "DELETE",
+        path: "/api/sessions/{sessionId}/elements",
+        description: "Clear all elements from a session",
+        response: "204 No Content"
+      }
+    ],
+    
+    elementTypes: {
+      rectangle: {
+        description: "A rectangle shape",
+        properties: {
+          type: { value: "rectangle", required: true },
+          x: { type: "number", required: true, description: "X position of top-left corner" },
+          y: { type: "number", required: true, description: "Y position of top-left corner" },
+          width: { type: "number", required: true, description: "Width in pixels" },
+          height: { type: "number", required: true, description: "Height in pixels" },
+          color: { type: "string", default: "#000000", description: "Stroke color (hex)" },
+          strokeWidth: { type: "number", default: 2, description: "Line thickness" }
+        },
+        example: { type: "rectangle", x: 100, y: 100, width: 200, height: 150, color: "#3498db", strokeWidth: 2 }
+      },
+      circle: {
+        description: "A circle shape",
+        properties: {
+          type: { value: "circle", required: true },
+          cx: { type: "number", required: true, description: "X position of center" },
+          cy: { type: "number", required: true, description: "Y position of center" },
+          radius: { type: "number", required: true, description: "Radius in pixels" },
+          color: { type: "string", default: "#000000", description: "Stroke color (hex)" },
+          strokeWidth: { type: "number", default: 2, description: "Line thickness" }
+        },
+        example: { type: "circle", cx: 200, cy: 200, radius: 50, color: "#e74c3c", strokeWidth: 2 }
+      },
+      line: {
+        description: "A straight line between two points",
+        properties: {
+          type: { value: "line", required: true },
+          x1: { type: "number", required: true, description: "Starting X position" },
+          y1: { type: "number", required: true, description: "Starting Y position" },
+          x2: { type: "number", required: true, description: "Ending X position" },
+          y2: { type: "number", required: true, description: "Ending Y position" },
+          color: { type: "string", default: "#000000", description: "Line color (hex)" },
+          strokeWidth: { type: "number", default: 2, description: "Line thickness" }
+        },
+        example: { type: "line", x1: 50, y1: 50, x2: 200, y2: 150, color: "#2ecc71", strokeWidth: 2 }
+      },
+      pen: {
+        description: "A freehand drawing made of connected points",
+        properties: {
+          type: { value: "pen", required: true },
+          points: { type: "array", required: true, description: "Array of {x, y} coordinate objects" },
+          color: { type: "string", default: "#000000", description: "Stroke color (hex)" },
+          strokeWidth: { type: "number", default: 2, description: "Line thickness" }
+        },
+        example: { type: "pen", points: [{ x: 10, y: 10 }, { x: 20, y: 30 }, { x: 40, y: 25 }, { x: 60, y: 35 }], color: "#9b59b6", strokeWidth: 2 }
+      },
+      text: {
+        description: "A text label",
+        properties: {
+          type: { value: "text", required: true },
+          x: { type: "number", required: true, description: "X position" },
+          y: { type: "number", required: true, description: "Y position (baseline)" },
+          text: { type: "string", required: true, description: "The text content" },
+          fontSize: { type: "number", default: 16, description: "Font size in pixels" },
+          color: { type: "string", default: "#000000", description: "Text color (hex)" }
+        },
+        example: { type: "text", x: 100, y: 100, text: "Hello World", fontSize: 24, color: "#2c3e50" }
+      },
+      note: {
+        description: "A sticky note with background color",
+        properties: {
+          type: { value: "note", required: true },
+          x: { type: "number", required: true, description: "X position of top-left corner" },
+          y: { type: "number", required: true, description: "Y position of top-left corner" },
+          width: { type: "number", default: 150, description: "Width in pixels" },
+          height: { type: "number", default: 100, description: "Height in pixels" },
+          text: { type: "string", required: true, description: "Note content" },
+          backgroundColor: { type: "string", default: "#fff9c4", description: "Background color (hex)" }
+        },
+        example: { type: "note", x: 300, y: 100, width: 150, height: 100, text: "Remember this!", backgroundColor: "#fff9c4" }
+      }
+    },
+    
+    colors: {
+      description: "Common colors for reference (use any valid hex color)",
+      palette: {
+        black: "#000000",
+        white: "#FFFFFF",
+        red: "#e74c3c",
+        blue: "#3498db",
+        green: "#2ecc71",
+        yellow: "#f1c40f",
+        orange: "#e67e22",
+        purple: "#9b59b6",
+        teal: "#1abc9c",
+        darkGray: "#2c3e50",
+        brown: "#8B4513",
+        pink: "#e91e63"
+      }
+    },
+    
+    tips: [
+      "Use the batch endpoint for complex drawings to reduce API calls",
+      "Elements are rendered in order - later elements appear on top",
+      "Session IDs can be any string - use descriptive names like 'project-diagram' or 'meeting-notes'",
+      "The canvas auto-adjusts, but keeping x: 100-800 and y: 80-500 ensures visibility",
+      "All changes sync instantly to any browsers viewing the same session",
+      "Use strokeWidth to make elements more visible (default is 2)",
+      "Combine basic shapes to create complex drawings (e.g., house = rectangles + lines + circles)"
+    ],
+    
+    exampleDrawings: {
+      house: {
+        description: "A simple house with roof, door, windows, and sun",
+        elements: [
+          { type: "rectangle", x: 250, y: 180, width: 250, height: 180, color: "#8B4513", strokeWidth: 2 },
+          { type: "line", x1: 250, y1: 180, x2: 375, y2: 80, color: "#8B0000", strokeWidth: 2 },
+          { type: "line", x1: 375, y1: 80, x2: 500, y2: 180, color: "#8B0000", strokeWidth: 2 },
+          { type: "rectangle", x: 340, y: 280, width: 50, height: 80, color: "#654321", strokeWidth: 2 },
+          { type: "rectangle", x: 270, y: 210, width: 45, height: 45, color: "#87CEEB", strokeWidth: 2 },
+          { type: "rectangle", x: 435, y: 210, width: 45, height: 45, color: "#87CEEB", strokeWidth: 2 },
+          { type: "circle", cx: 550, cy: 100, radius: 35, color: "#FFD700", strokeWidth: 3 },
+          { type: "text", x: 300, y: 400, text: "Home Sweet Home", fontSize: 24, color: "#2c3e50" }
+        ]
+      },
+      flowchart: {
+        description: "A simple flowchart with connected boxes",
+        elements: [
+          { type: "rectangle", x: 300, y: 100, width: 120, height: 50, color: "#3498db", strokeWidth: 2 },
+          { type: "text", x: 330, y: 130, text: "Start", fontSize: 16, color: "#2c3e50" },
+          { type: "line", x1: 360, y1: 150, x2: 360, y2: 200, color: "#333333", strokeWidth: 2 },
+          { type: "rectangle", x: 300, y: 200, width: 120, height: 50, color: "#2ecc71", strokeWidth: 2 },
+          { type: "text", x: 320, y: 230, text: "Process", fontSize: 16, color: "#2c3e50" },
+          { type: "line", x1: 360, y1: 250, x2: 360, y2: 300, color: "#333333", strokeWidth: 2 },
+          { type: "rectangle", x: 300, y: 300, width: 120, height: 50, color: "#e74c3c", strokeWidth: 2 },
+          { type: "text", x: 340, y: 330, text: "End", fontSize: 16, color: "#2c3e50" }
+        ]
+      }
+    }
+  });
+});
+
 // Session route - serve the whiteboard app (must come after API routes)
 app.get('/:sessionId', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
