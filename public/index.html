@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collaborative Whiteboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h1 class="logo">Whiteboard</h1>
+        <span class="session-id" id="sessionId"></span>
+      </div>
+      <div class="header-right">
+        <span class="user-count" id="userCount">Users: 1</span>
+        <button class="btn btn-share" id="shareBtn">Share Link</button>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <div class="main">
+      <!-- Toolbar -->
+      <aside class="toolbar">
+        <div class="tool-section">
+          <span class="section-label">Tools</span>
+          <button class="tool-btn active" data-tool="pen" title="Pen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+              <path d="M2 2l7.586 7.586"/>
+            </svg>
+          </button>
+          <button class="tool-btn" data-tool="line" title="Line">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="19" x2="19" y2="5"/>
+            </svg>
+          </button>
+          <button class="tool-btn" data-tool="rectangle" title="Rectangle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+            </svg>
+          </button>
+          <button class="tool-btn" data-tool="circle" title="Circle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"/>
+            </svg>
+          </button>
+          <button class="tool-btn" data-tool="note" title="Sticky Note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+          </button>
+          <button class="tool-btn" data-tool="text" title="Text">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="4 7 4 4 20 4 20 7"/>
+              <line x1="9" y1="20" x2="15" y2="20"/>
+              <line x1="12" y1="4" x2="12" y2="20"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="tool-section">
+          <span class="section-label">Edit</span>
+          <button class="tool-btn" data-tool="eraser" title="Eraser">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8L14.8 1.4c.8-.8 2-.8 2.8 0l5 5c.8.8.8 2 0 2.8L11 20"/>
+              <path d="M18 13L11 6"/>
+            </svg>
+          </button>
+          <button class="tool-btn danger" id="clearBtn" title="Clear All">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="tool-section">
+          <span class="section-label">Color</span>
+          <div class="color-palette">
+            <button class="color-btn active" data-color="#000000" style="background-color: #000000" title="Black"></button>
+            <button class="color-btn" data-color="#e74c3c" style="background-color: #e74c3c" title="Red"></button>
+            <button class="color-btn" data-color="#3498db" style="background-color: #3498db" title="Blue"></button>
+            <button class="color-btn" data-color="#2ecc71" style="background-color: #2ecc71" title="Green"></button>
+            <button class="color-btn" data-color="#f39c12" style="background-color: #f39c12" title="Orange"></button>
+            <button class="color-btn" data-color="#9b59b6" style="background-color: #9b59b6" title="Purple"></button>
+            <button class="color-btn" data-color="#1abc9c" style="background-color: #1abc9c" title="Teal"></button>
+            <button class="color-btn" data-color="#34495e" style="background-color: #34495e" title="Dark Gray"></button>
+          </div>
+        </div>
+
+        <div class="tool-section">
+          <span class="section-label">Stroke</span>
+          <div class="stroke-options">
+            <button class="stroke-btn" data-stroke="2" title="Thin">
+              <div class="stroke-preview" style="height: 2px"></div>
+            </button>
+            <button class="stroke-btn active" data-stroke="4" title="Medium">
+              <div class="stroke-preview" style="height: 4px"></div>
+            </button>
+            <button class="stroke-btn" data-stroke="8" title="Thick">
+              <div class="stroke-preview" style="height: 8px"></div>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Canvas container -->
+      <div class="canvas-container" id="canvasContainer">
+        <canvas id="whiteboard"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Note input modal -->
+  <div class="modal" id="noteModal">
+    <div class="modal-content">
+      <h3>Add Note</h3>
+      <textarea id="noteText" placeholder="Enter your note..." rows="4"></textarea>
+      <div class="modal-actions">
+        <button class="btn btn-cancel" id="noteCancelBtn">Cancel</button>
+        <button class="btn btn-primary" id="noteSaveBtn">Add Note</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Text input modal -->
+  <div class="modal" id="textModal">
+    <div class="modal-content">
+      <h3>Add Text</h3>
+      <input type="text" id="textInput" placeholder="Enter text..." class="text-input">
+      <div class="font-size-selector">
+        <label>Font Size:</label>
+        <select id="fontSizeSelect">
+          <option value="16">Small (16px)</option>
+          <option value="24" selected>Medium (24px)</option>
+          <option value="36">Large (36px)</option>
+          <option value="48">Extra Large (48px)</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-cancel" id="textCancelBtn">Cancel</button>
+        <button class="btn btn-primary" id="textSaveBtn">Add Text</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clear confirmation modal -->
+  <div class="modal" id="clearModal">
+    <div class="modal-content">
+      <h3>Clear Whiteboard?</h3>
+      <p>This will remove all drawings and notes. This action cannot be undone.</p>
+      <div class="modal-actions">
+        <button class="btn btn-cancel" id="clearCancelBtn">Cancel</button>
+        <button class="btn btn-danger" id="clearConfirmBtn">Clear All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
