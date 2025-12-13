@@ -22,7 +22,313 @@ app.get('/', (req, res) => {
 // Serve static files (but not index.html at root)
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
-// Session route - serve the whiteboard app
+// Parse JSON bodies for API routes
+app.use(express.json());
+
+// ============================================================
+// REST API for Agents
+// ============================================================
+
+// GET /api/sessions/:sessionId - Get session info and all elements
+app.get('/api/sessions/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const session = sessions.get(sessionId);
+  
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  res.json({
+    id: session.id,
+    elementCount: session.elements.length,
+    elements: session.elements,
+    userCount: session.clients.size,
+    createdAt: session.createdAt
+  });
+});
+
+// GET /api/sessions/:sessionId/elements - Get all elements
+app.get('/api/sessions/:sessionId/elements', (req, res) => {
+  const { sessionId } = req.params;
+  const session = sessions.get(sessionId);
+  
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  res.json(session.elements);
+});
+
+// GET /api/sessions/:sessionId/elements/:elementId - Get a specific element
+app.get('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
+  const { sessionId, elementId } = req.params;
+  const session = sessions.get(sessionId);
+  
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  const element = session.elements.find(el => el.id === elementId);
+  if (!element) {
+    return res.status(404).json({ error: 'Element not found' });
+  }
+  
+  res.json(element);
+});
+
+// POST /api/sessions/:sessionId/elements - Create a new element
+app.post('/api/sessions/:sessionId/elements', (req, res) => {
+  const { sessionId } = req.params;
+  const session = getOrCreateSession(sessionId);
+  
+  const elementData = req.body;
+  
+  // Validate required fields
+  if (!elementData.type) {
+    return res.status(400).json({ error: 'Element type is required' });
+  }
+  
+  const validTypes = ['rect', 'circle', 'line', 'pen', 'text', 'note'];
+  if (!validTypes.includes(elementData.type)) {
+    return res.status(400).json({ 
+      error: `Invalid element type. Must be one of: ${validTypes.join(', ')}` 
+    });
+  }
+  
+  // Create element with ID and metadata
+  const element = {
+    ...elementData,
+    id: elementData.id || uuidv4(),
+    createdBy: 'api',
+    timestamp: Date.now()
+  };
+  
+  session.elements.push(element);
+  
+  // Broadcast to connected WebSocket clients
+  broadcastAll(session, {
+    type: 'draw',
+    element: element
+  });
+  
+  res.status(201).json(element);
+});
+
+// POST /api/sessions/:sessionId/elements/batch - Create multiple elements
+app.post('/api/sessions/:sessionId/elements/batch', (req, res) => {
+  const { sessionId } = req.params;
+  const session = getOrCreateSession(sessionId);
+  
+  const elementsData = req.body;
+  
+  if (!Array.isArray(elementsData)) {
+    return res.status(400).json({ error: 'Request body must be an array of elements' });
+  }
+  
+  const validTypes = ['rect', 'circle', 'line', 'pen', 'text', 'note'];
+  const createdElements = [];
+  
+  for (const elementData of elementsData) {
+    if (!elementData.type) {
+      return res.status(400).json({ error: 'Each element must have a type' });
+    }
+    if (!validTypes.includes(elementData.type)) {
+      return res.status(400).json({ 
+        error: `Invalid element type: ${elementData.type}. Must be one of: ${validTypes.join(', ')}` 
+      });
+    }
+    
+    const element = {
+      ...elementData,
+      id: elementData.id || uuidv4(),
+      createdBy: 'api',
+      timestamp: Date.now()
+    };
+    
+    session.elements.push(element);
+    createdElements.push(element);
+    
+    // Broadcast each element to connected clients
+    broadcastAll(session, {
+      type: 'draw',
+      element: element
+    });
+  }
+  
+  res.status(201).json(createdElements);
+});
+
+// PUT /api/sessions/:sessionId/elements/:elementId - Update an element
+app.put('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
+  const { sessionId, elementId } = req.params;
+  const session = sessions.get(sessionId);
+  
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  const elementIndex = session.elements.findIndex(el => el.id === elementId);
+  if (elementIndex === -1) {
+    return res.status(404).json({ error: 'Element not found' });
+  }
+  
+  const updatedElement = {
+    ...session.elements[elementIndex],
+    ...req.body,
+    id: elementId, // Prevent ID from being changed
+    updatedBy: 'api',
+    updatedAt: Date.now()
+  };
+  
+  session.elements[elementIndex] = updatedElement;
+  
+  // Broadcast to connected WebSocket clients
+  broadcastAll(session, {
+    type: 'move',
+    elementId: elementId,
+    element: updatedElement
+  });
+  
+  res.json(updatedElement);
+});
+
+// DELETE /api/sessions/:sessionId/elements/:elementId - Delete an element
+app.delete('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
+  const { sessionId, elementId } = req.params;
+  const session = sessions.get(sessionId);
+  
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  const elementIndex = session.elements.findIndex(el => el.id === elementId);
+  if (elementIndex === -1) {
+    return res.status(404).json({ error: 'Element not found' });
+  }
+  
+  session.elements.splice(elementIndex, 1);
+  
+  // Broadcast to connected WebSocket clients
+  broadcastAll(session, {
+    type: 'erase',
+    elementId: elementId
+  });
+  
+  res.status(204).send();
+});
+
+// DELETE /api/sessions/:sessionId/elements - Clear all elements
+app.delete('/api/sessions/:sessionId/elements', (req, res) => {
+  const { sessionId } = req.params;
+  const session = sessions.get(sessionId);
+  
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  session.elements = [];
+  
+  // Broadcast to connected WebSocket clients
+  broadcastAll(session, {
+    type: 'clear'
+  });
+  
+  res.status(204).send();
+});
+
+// GET /api/schema - Get element schema documentation
+app.get('/api/schema', (req, res) => {
+  res.json({
+    description: 'Whiteboard element schemas',
+    types: {
+      rect: {
+        description: 'Rectangle shape',
+        required: ['type', 'x', 'y', 'width', 'height'],
+        properties: {
+          type: { type: 'string', value: 'rect' },
+          x: { type: 'number', description: 'X position of top-left corner' },
+          y: { type: 'number', description: 'Y position of top-left corner' },
+          width: { type: 'number', description: 'Width of rectangle' },
+          height: { type: 'number', description: 'Height of rectangle' },
+          color: { type: 'string', default: '#000000', description: 'Stroke color (hex)' }
+        },
+        example: { type: 'rect', x: 100, y: 100, width: 200, height: 150, color: '#3498db' }
+      },
+      circle: {
+        description: 'Circle shape',
+        required: ['type', 'x', 'y', 'radius'],
+        properties: {
+          type: { type: 'string', value: 'circle' },
+          x: { type: 'number', description: 'X position of center' },
+          y: { type: 'number', description: 'Y position of center' },
+          radius: { type: 'number', description: 'Radius of circle' },
+          color: { type: 'string', default: '#000000', description: 'Stroke color (hex)' }
+        },
+        example: { type: 'circle', x: 200, y: 200, radius: 50, color: '#e74c3c' }
+      },
+      line: {
+        description: 'Straight line',
+        required: ['type', 'startX', 'startY', 'endX', 'endY'],
+        properties: {
+          type: { type: 'string', value: 'line' },
+          startX: { type: 'number', description: 'Starting X position' },
+          startY: { type: 'number', description: 'Starting Y position' },
+          endX: { type: 'number', description: 'Ending X position' },
+          endY: { type: 'number', description: 'Ending Y position' },
+          color: { type: 'string', default: '#000000', description: 'Line color (hex)' }
+        },
+        example: { type: 'line', startX: 50, startY: 50, endX: 200, endY: 150, color: '#2ecc71' }
+      },
+      pen: {
+        description: 'Freehand drawing (series of points)',
+        required: ['type', 'points'],
+        properties: {
+          type: { type: 'string', value: 'pen' },
+          points: { type: 'array', items: { type: 'object', properties: { x: 'number', y: 'number' } }, description: 'Array of {x, y} points' },
+          color: { type: 'string', default: '#000000', description: 'Stroke color (hex)' }
+        },
+        example: { type: 'pen', points: [{ x: 10, y: 10 }, { x: 15, y: 20 }, { x: 25, y: 15 }], color: '#9b59b6' }
+      },
+      text: {
+        description: 'Text element',
+        required: ['type', 'x', 'y', 'text'],
+        properties: {
+          type: { type: 'string', value: 'text' },
+          x: { type: 'number', description: 'X position' },
+          y: { type: 'number', description: 'Y position' },
+          text: { type: 'string', description: 'Text content' },
+          fontSize: { type: 'number', default: 16, description: 'Font size in pixels' },
+          color: { type: 'string', default: '#000000', description: 'Text color (hex)' }
+        },
+        example: { type: 'text', x: 100, y: 100, text: 'Hello World', fontSize: 24, color: '#34495e' }
+      },
+      note: {
+        description: 'Sticky note with text',
+        required: ['type', 'x', 'y', 'text'],
+        properties: {
+          type: { type: 'string', value: 'note' },
+          x: { type: 'number', description: 'X position of top-left corner' },
+          y: { type: 'number', description: 'Y position of top-left corner' },
+          text: { type: 'string', description: 'Note content' },
+          color: { type: 'string', default: '#f1c40f', description: 'Background color (hex)' }
+        },
+        example: { type: 'note', x: 300, y: 100, text: 'Remember this!', color: '#f1c40f' }
+      }
+    },
+    endpoints: {
+      'GET /api/sessions/:sessionId': 'Get session info and all elements',
+      'GET /api/sessions/:sessionId/elements': 'Get all elements',
+      'GET /api/sessions/:sessionId/elements/:elementId': 'Get a specific element',
+      'POST /api/sessions/:sessionId/elements': 'Create a new element',
+      'POST /api/sessions/:sessionId/elements/batch': 'Create multiple elements',
+      'PUT /api/sessions/:sessionId/elements/:elementId': 'Update an element',
+      'DELETE /api/sessions/:sessionId/elements/:elementId': 'Delete an element',
+      'DELETE /api/sessions/:sessionId/elements': 'Clear all elements'
+    }
+  });
+});
+
+// Session route - serve the whiteboard app (must come after API routes)
 app.get('/:sessionId', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
