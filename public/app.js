@@ -36,6 +36,11 @@ class Whiteboard {
     this.dragOffsetX = 0;
     this.dragOffsetY = 0;
     
+    // Resize state
+    this.isResizing = false;
+    this.resizeHandle = null; // 'nw', 'ne', 'sw', 'se'
+    this.resizeStartBounds = null;
+    
     // Undo/Redo stacks
     this.undoStack = [];
     this.redoStack = [];
@@ -464,8 +469,8 @@ class Whiteboard {
   }
 
   continueDrawing(point) {
-    // Handle dragging for select tool
-    if (this.currentTool === 'select' && this.isDragging) {
+    // Handle dragging or resizing for select tool
+    if (this.currentTool === 'select' && (this.isDragging || this.isResizing)) {
       this.handleSelectDrag(point);
       return;
     }
@@ -485,8 +490,8 @@ class Whiteboard {
   }
 
   endDrawing(point) {
-    // Handle end of dragging for select tool
-    if (this.currentTool === 'select' && this.isDragging) {
+    // Handle end of dragging or resizing for select tool
+    if (this.currentTool === 'select' && (this.isDragging || this.isResizing)) {
       this.handleSelectEnd(point);
       return;
     }
@@ -810,6 +815,20 @@ class Whiteboard {
   // ============================================================
 
   handleSelectStart(point) {
+    // If element is already selected, check if clicking on a resize handle
+    if (this.selectedElement) {
+      const handle = this.getResizeHandleAtPoint(point);
+      if (handle) {
+        this.isResizing = true;
+        this.resizeHandle = handle;
+        this.resizeStartBounds = this.getElementBounds(this.selectedElement);
+        this.dragOriginalState = JSON.parse(JSON.stringify(this.selectedElement));
+        this.canvasContainer.classList.add('resizing');
+        this.redraw();
+        return;
+      }
+    }
+    
     // Check if clicking on an element
     const element = this.getElementAtPoint(point);
     
@@ -832,9 +851,44 @@ class Whiteboard {
     
     this.redraw();
   }
+  
+  getResizeHandleAtPoint(point) {
+    if (!this.selectedElement) return null;
+    
+    const bounds = this.getElementBounds(this.selectedElement);
+    const padding = 5;
+    const handleSize = 16; // Larger hit area for easier clicking
+    
+    const handles = {
+      nw: { x: bounds.x - padding, y: bounds.y - padding },
+      ne: { x: bounds.x + bounds.width + padding, y: bounds.y - padding },
+      sw: { x: bounds.x - padding, y: bounds.y + bounds.height + padding },
+      se: { x: bounds.x + bounds.width + padding, y: bounds.y + bounds.height + padding }
+    };
+    
+    for (const [name, pos] of Object.entries(handles)) {
+      const dx = point.x - pos.x;
+      const dy = point.y - pos.y;
+      if (Math.abs(dx) <= handleSize && Math.abs(dy) <= handleSize) {
+        return name;
+      }
+    }
+    
+    return null;
+  }
 
   handleSelectDrag(point) {
-    if (!this.selectedElement || !this.isDragging) return;
+    if (!this.selectedElement) return;
+    
+    // Handle resizing
+    if (this.isResizing && this.resizeHandle) {
+      this.resizeElement(this.selectedElement, point);
+      this.redraw();
+      return;
+    }
+    
+    // Handle dragging
+    if (!this.isDragging) return;
     
     const newX = point.x - this.dragOffsetX;
     const newY = point.y - this.dragOffsetY;
@@ -842,8 +896,125 @@ class Whiteboard {
     this.moveElement(this.selectedElement, newX, newY);
     this.redraw();
   }
+  
+  resizeElement(element, point) {
+    const bounds = this.resizeStartBounds;
+    if (!bounds) return;
+    
+    let newX = bounds.x;
+    let newY = bounds.y;
+    let newWidth = bounds.width;
+    let newHeight = bounds.height;
+    
+    // Calculate new dimensions based on resize handle
+    switch (this.resizeHandle) {
+      case 'se': // Bottom-right
+        newWidth = Math.max(20, point.x - bounds.x);
+        newHeight = Math.max(20, point.y - bounds.y);
+        break;
+      case 'sw': // Bottom-left
+        newWidth = Math.max(20, bounds.x + bounds.width - point.x);
+        newHeight = Math.max(20, point.y - bounds.y);
+        newX = Math.min(point.x, bounds.x + bounds.width - 20);
+        break;
+      case 'ne': // Top-right
+        newWidth = Math.max(20, point.x - bounds.x);
+        newHeight = Math.max(20, bounds.y + bounds.height - point.y);
+        newY = Math.min(point.y, bounds.y + bounds.height - 20);
+        break;
+      case 'nw': // Top-left
+        newWidth = Math.max(20, bounds.x + bounds.width - point.x);
+        newHeight = Math.max(20, bounds.y + bounds.height - point.y);
+        newX = Math.min(point.x, bounds.x + bounds.width - 20);
+        newY = Math.min(point.y, bounds.y + bounds.height - 20);
+        break;
+    }
+    
+    // Apply resize to element based on type
+    this.applyResize(element, newX, newY, newWidth, newHeight);
+  }
+  
+  applyResize(element, newX, newY, newWidth, newHeight) {
+    const bounds = this.resizeStartBounds;
+    if (!bounds) return;
+    
+    const scaleX = newWidth / bounds.width;
+    const scaleY = newHeight / bounds.height;
+    
+    switch (element.type) {
+      case 'rectangle':
+      case 'note':
+        element.x = newX;
+        element.y = newY;
+        element.width = newWidth;
+        element.height = newHeight;
+        break;
+        
+      case 'circle':
+        // Keep aspect ratio for circles
+        const scale = Math.max(scaleX, scaleY);
+        const newRadius = (bounds.width / 2) * scale;
+        element.radius = Math.max(10, newRadius);
+        element.cx = newX + newWidth / 2;
+        element.cy = newY + newHeight / 2;
+        break;
+        
+      case 'line':
+        // Scale line endpoints
+        element.x1 = newX + (this.dragOriginalState.x1 - bounds.x) * scaleX;
+        element.y1 = newY + (this.dragOriginalState.y1 - bounds.y) * scaleY;
+        element.x2 = newX + (this.dragOriginalState.x2 - bounds.x) * scaleX;
+        element.y2 = newY + (this.dragOriginalState.y2 - bounds.y) * scaleY;
+        break;
+        
+      case 'pen':
+        // Scale all pen points
+        element.points = this.dragOriginalState.points.map(p => ({
+          x: newX + (p.x - bounds.x) * scaleX,
+          y: newY + (p.y - bounds.y) * scaleY
+        }));
+        break;
+        
+      case 'text':
+        // Scale font size
+        element.x = newX;
+        element.y = newY;
+        element.fontSize = Math.max(8, Math.round(this.dragOriginalState.fontSize * Math.max(scaleX, scaleY)));
+        break;
+    }
+  }
 
   handleSelectEnd(point) {
+    // Handle end of resize
+    if (this.isResizing && this.selectedElement && this.dragOriginalState) {
+      const hasChanged = JSON.stringify(this.dragOriginalState) !== JSON.stringify(this.selectedElement);
+      
+      if (hasChanged) {
+        // Save to history (using 'move' type for simplicity, it stores the full state)
+        this.saveToHistory({
+          type: 'move',
+          elementId: this.selectedElement.id,
+          previousState: this.dragOriginalState,
+          newState: JSON.parse(JSON.stringify(this.selectedElement))
+        });
+        
+        // Send update to other clients
+        this.sendMessage({
+          type: 'move',
+          elementId: this.selectedElement.id,
+          element: this.selectedElement
+        });
+      }
+      
+      this.isResizing = false;
+      this.resizeHandle = null;
+      this.resizeStartBounds = null;
+      this.dragOriginalState = null;
+      this.canvasContainer.classList.remove('resizing');
+      return;
+    }
+    
+    // Handle end of drag
     if (this.isDragging && this.selectedElement && this.dragOriginalState) {
       // Check if element actually moved
       const hasMoved = JSON.stringify(this.dragOriginalState) !== JSON.stringify(this.selectedElement);

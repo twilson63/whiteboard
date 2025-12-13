@@ -443,6 +443,11 @@ body {
   cursor: grabbing;
 }
 
+/* Resize cursor */
+.canvas-container.resizing #whiteboard {
+  cursor: nwse-resize;
+}
+
 /* Zoom level display */
 .zoom-level {
   font-size: 0.75rem;
