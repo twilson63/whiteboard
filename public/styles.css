@@ -188,6 +188,16 @@ body {
   color: var(--text-light);
 }
 
+.tool-btn.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.tool-btn.disabled:hover {
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* Color palette */
 .color-palette {
   display: grid;

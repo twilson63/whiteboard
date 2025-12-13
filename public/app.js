@@ -36,6 +36,11 @@ class Whiteboard {
     this.dragOffsetX = 0;
     this.dragOffsetY = 0;
     
+    // Undo/Redo stacks
+    this.undoStack = [];
+    this.redoStack = [];
+    this.maxHistorySize = 50;
+    
     // Initialize
     this.init();
   }
@@ -50,6 +55,7 @@ class Whiteboard {
     this.setupEventListeners();
     this.connectWebSocket();
     this.updateSessionDisplay();
+    this.updateUndoRedoButtons();
   }
 
   // ============================================================
@@ -164,6 +170,37 @@ class Whiteboard {
     
     document.getElementById('moveToBackBtn').addEventListener('click', () => {
       this.moveToBack();
+    });
+    
+    // Undo/Redo buttons
+    document.getElementById('undoBtn').addEventListener('click', () => {
+      this.undo();
+    });
+    
+    document.getElementById('redoBtn').addEventListener('click', () => {
+      this.redo();
+    });
+    
+    // Keyboard shortcuts for undo/redo
+    document.addEventListener('keydown', (e) => {
+      // Check if we're in a text input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          this.redo();
+        } else {
+          this.undo();
+        }
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        this.redo();
+      }
     });
     
     // Close modals on backdrop click
@@ -382,6 +419,7 @@ class Whiteboard {
     if (element) {
       this.elements.push(element);
       this.sendMessage({ type: 'draw', element });
+      this.saveToHistory({ type: 'add', element });
       this.redraw();
     }
     
@@ -571,6 +609,9 @@ class Whiteboard {
       this.isDragging = true;
       this.canvasContainer.classList.add('dragging');
       
+      // Save original state for undo
+      this.dragOriginalState = JSON.parse(JSON.stringify(element));
+      
       // Calculate offset from element origin to click point
       const bounds = this.getElementBounds(element);
       this.dragOffsetX = point.x - bounds.x;
@@ -594,16 +635,30 @@ class Whiteboard {
   }
 
   handleSelectEnd(point) {
-    if (this.isDragging && this.selectedElement) {
-      // Send move update to other clients
-      this.sendMessage({
-        type: 'move',
-        elementId: this.selectedElement.id,
-        element: this.selectedElement
-      });
+    if (this.isDragging && this.selectedElement && this.dragOriginalState) {
+      // Check if element actually moved
+      const hasMoved = JSON.stringify(this.dragOriginalState) !== JSON.stringify(this.selectedElement);
+      
+      if (hasMoved) {
+        // Save to history
+        this.saveToHistory({
+          type: 'move',
+          elementId: this.selectedElement.id,
+          previousState: this.dragOriginalState,
+          newState: JSON.parse(JSON.stringify(this.selectedElement))
+        });
+        
+        // Send move update to other clients
+        this.sendMessage({
+          type: 'move',
+          elementId: this.selectedElement.id,
+          element: this.selectedElement
+        });
+      }
     }
     
     this.isDragging = false;
+    this.dragOriginalState = null;
     this.canvasContainer.classList.remove('dragging');
   }
 
@@ -733,6 +788,174 @@ class Whiteboard {
   }
 
   // ============================================================
+  // Undo/Redo
+  // ============================================================
+
+  saveToHistory(action) {
+    // Save action to undo stack
+    this.undoStack.push(action);
+    
+    // Limit history size
+    if (this.undoStack.length > this.maxHistorySize) {
+      this.undoStack.shift();
+    }
+    
+    // Clear redo stack when new action is performed
+    this.redoStack = [];
+    
+    // Update button states
+    this.updateUndoRedoButtons();
+  }
+
+  undo() {
+    if (this.undoStack.length === 0) {
+      this.showToast('Nothing to undo');
+      return;
+    }
+    
+    const action = this.undoStack.pop();
+    
+    // Perform the reverse action
+    switch (action.type) {
+      case 'add':
+        // Remove the added element
+        this.elements = this.elements.filter(el => el.id !== action.element.id);
+        this.sendMessage({ type: 'erase', elementId: action.element.id });
+        break;
+        
+      case 'delete':
+        // Re-add the deleted element at its original position
+        if (action.index !== undefined) {
+          this.elements.splice(action.index, 0, action.element);
+        } else {
+          this.elements.push(action.element);
+        }
+        this.sendMessage({ type: 'draw', element: action.element });
+        break;
+        
+      case 'move':
+        // Move element back to original position
+        const moveEl = this.elements.find(el => el.id === action.elementId);
+        if (moveEl) {
+          Object.assign(moveEl, action.previousState);
+          this.sendMessage({ type: 'move', elementId: action.elementId, element: moveEl });
+        }
+        break;
+        
+      case 'reorder':
+        // Move element back to original index
+        const reorderIdx = this.elements.findIndex(el => el.id === action.elementId);
+        if (reorderIdx !== -1) {
+          const [element] = this.elements.splice(reorderIdx, 1);
+          this.elements.splice(action.previousIndex, 0, element);
+          // For sync, we just send the full reorder back
+          this.sendMessage({ 
+            type: 'reorder', 
+            elementId: action.elementId, 
+            position: action.previousIndex === 0 ? 'back' : 'front'
+          });
+        }
+        break;
+        
+      case 'clear':
+        // Restore all cleared elements
+        this.elements = [...action.elements];
+        action.elements.forEach(el => {
+          this.sendMessage({ type: 'draw', element: el });
+        });
+        break;
+    }
+    
+    // Push to redo stack
+    this.redoStack.push(action);
+    
+    // Clear selection
+    this.selectedElement = null;
+    
+    this.updateUndoRedoButtons();
+    this.redraw();
+    this.showToast('Undo');
+  }
+
+  redo() {
+    if (this.redoStack.length === 0) {
+      this.showToast('Nothing to redo');
+      return;
+    }
+    
+    const action = this.redoStack.pop();
+    
+    // Perform the action again
+    switch (action.type) {
+      case 'add':
+        // Re-add the element
+        this.elements.push(action.element);
+        this.sendMessage({ type: 'draw', element: action.element });
+        break;
+        
+      case 'delete':
+        // Delete the element again
+        this.elements = this.elements.filter(el => el.id !== action.element.id);
+        this.sendMessage({ type: 'erase', elementId: action.element.id });
+        break;
+        
+      case 'move':
+        // Apply the new position
+        const moveEl = this.elements.find(el => el.id === action.elementId);
+        if (moveEl) {
+          Object.assign(moveEl, action.newState);
+          this.sendMessage({ type: 'move', elementId: action.elementId, element: moveEl });
+        }
+        break;
+        
+      case 'reorder':
+        // Apply the new index
+        const reorderIdx = this.elements.findIndex(el => el.id === action.elementId);
+        if (reorderIdx !== -1) {
+          const [element] = this.elements.splice(reorderIdx, 1);
+          if (action.newIndex === this.elements.length || action.position === 'front') {
+            this.elements.push(element);
+          } else {
+            this.elements.unshift(element);
+          }
+          this.sendMessage({ type: 'reorder', elementId: action.elementId, position: action.position });
+        }
+        break;
+        
+      case 'clear':
+        // Clear again
+        this.elements = [];
+        this.sendMessage({ type: 'clear' });
+        break;
+    }
+    
+    // Push back to undo stack
+    this.undoStack.push(action);
+    
+    // Clear selection
+    this.selectedElement = null;
+    
+    this.updateUndoRedoButtons();
+    this.redraw();
+    this.showToast('Redo');
+  }
+
+  updateUndoRedoButtons() {
+    const undoBtn = document.getElementById('undoBtn');
+    const redoBtn = document.getElementById('redoBtn');
+    
+    if (undoBtn) {
+      undoBtn.disabled = this.undoStack.length === 0;
+      undoBtn.classList.toggle('disabled', this.undoStack.length === 0);
+    }
+    
+    if (redoBtn) {
+      redoBtn.disabled = this.redoStack.length === 0;
+      redoBtn.classList.toggle('disabled', this.redoStack.length === 0);
+    }
+  }
+
+  // ============================================================
   // Layer Ordering (Z-Index)
   // ============================================================
 
@@ -747,6 +970,15 @@ class Whiteboard {
       // Already at front or not found
       return;
     }
+    
+    // Save to history
+    this.saveToHistory({
+      type: 'reorder',
+      elementId: this.selectedElement.id,
+      previousIndex: index,
+      newIndex: this.elements.length - 1,
+      position: 'front'
+    });
     
     // Remove from current position and add to end (front)
     const [element] = this.elements.splice(index, 1);
@@ -775,6 +1007,15 @@ class Whiteboard {
       return;
     }
     
+    // Save to history
+    this.saveToHistory({
+      type: 'reorder',
+      elementId: this.selectedElement.id,
+      previousIndex: index,
+      newIndex: 0,
+      position: 'back'
+    });
+    
     // Remove from current position and add to beginning (back)
     const [element] = this.elements.splice(index, 1);
     this.elements.unshift(element);
@@ -802,8 +1043,9 @@ class Whiteboard {
       
       if (this.isPointNearElement(point, element, hitRadius)) {
         const elementId = element.id;
-        this.elements.splice(i, 1);
+        const deletedElement = this.elements.splice(i, 1)[0];
         this.sendMessage({ type: 'erase', elementId });
+        this.saveToHistory({ type: 'delete', element: deletedElement, index: i });
         this.redraw();
         break;
       }
@@ -918,6 +1160,7 @@ class Whiteboard {
     
     this.elements.push(element);
     this.sendMessage({ type: 'draw', element });
+    this.saveToHistory({ type: 'add', element });
     this.redraw();
     
     document.getElementById('noteModal').classList.remove('active');
@@ -947,6 +1190,7 @@ class Whiteboard {
     
     this.elements.push(element);
     this.sendMessage({ type: 'draw', element });
+    this.saveToHistory({ type: 'add', element });
     this.redraw();
     
     document.getElementById('textModal').classList.remove('active');
@@ -958,7 +1202,12 @@ class Whiteboard {
   // ============================================================
 
   clearAll() {
+    // Save all elements for undo
+    if (this.elements.length > 0) {
+      this.saveToHistory({ type: 'clear', elements: [...this.elements] });
+    }
     this.elements = [];
+    this.selectedElement = null;
     this.sendMessage({ type: 'clear' });
     this.redraw();
     this.showToast('Whiteboard cleared');
