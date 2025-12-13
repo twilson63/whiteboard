@@ -203,6 +203,26 @@ function handleMessage(ws, session, message) {
       }
       break;
 
+    case 'reorder':
+      // Reorder element (move to front/back)
+      const reorderIndex = session.elements.findIndex(el => el.id === message.elementId);
+      if (reorderIndex !== -1) {
+        const [element] = session.elements.splice(reorderIndex, 1);
+        if (message.position === 'front') {
+          session.elements.push(element);
+        } else if (message.position === 'back') {
+          session.elements.unshift(element);
+        }
+        
+        // Broadcast to other clients
+        broadcast(session, {
+          type: 'reorder',
+          elementId: message.elementId,
+          position: message.position
+        }, ws);
+      }
+      break;
+
     default:
       console.warn('Unknown message type:', message.type);
   }

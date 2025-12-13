@@ -157,6 +157,15 @@ class Whiteboard {
       this.shareLink();
     });
     
+    // Layer buttons
+    document.getElementById('moveToFrontBtn').addEventListener('click', () => {
+      this.moveToFront();
+    });
+    
+    document.getElementById('moveToBackBtn').addEventListener('click', () => {
+      this.moveToBack();
+    });
+    
     // Close modals on backdrop click
     document.querySelectorAll('.modal').forEach(modal => {
       modal.addEventListener('click', (e) => {
@@ -724,6 +733,64 @@ class Whiteboard {
   }
 
   // ============================================================
+  // Layer Ordering (Z-Index)
+  // ============================================================
+
+  moveToFront() {
+    if (!this.selectedElement) {
+      this.showToast('Select an element first');
+      return;
+    }
+    
+    const index = this.elements.findIndex(el => el.id === this.selectedElement.id);
+    if (index === -1 || index === this.elements.length - 1) {
+      // Already at front or not found
+      return;
+    }
+    
+    // Remove from current position and add to end (front)
+    const [element] = this.elements.splice(index, 1);
+    this.elements.push(element);
+    
+    // Sync with other clients
+    this.sendMessage({
+      type: 'reorder',
+      elementId: element.id,
+      position: 'front'
+    });
+    
+    this.redraw();
+    this.showToast('Moved to front');
+  }
+
+  moveToBack() {
+    if (!this.selectedElement) {
+      this.showToast('Select an element first');
+      return;
+    }
+    
+    const index = this.elements.findIndex(el => el.id === this.selectedElement.id);
+    if (index === -1 || index === 0) {
+      // Already at back or not found
+      return;
+    }
+    
+    // Remove from current position and add to beginning (back)
+    const [element] = this.elements.splice(index, 1);
+    this.elements.unshift(element);
+    
+    // Sync with other clients
+    this.sendMessage({
+      type: 'reorder',
+      elementId: element.id,
+      position: 'back'
+    });
+    
+    this.redraw();
+    this.showToast('Moved to back');
+  }
+
+  // ============================================================
   // Eraser
   // ============================================================
 
@@ -959,9 +1026,23 @@ class Whiteboard {
       
       case 'move':
         // Update the moved element
-        const index = this.elements.findIndex(el => el.id === message.elementId);
-        if (index !== -1) {
-          this.elements[index] = message.element;
+        const moveIndex = this.elements.findIndex(el => el.id === message.elementId);
+        if (moveIndex !== -1) {
+          this.elements[moveIndex] = message.element;
+          this.redraw();
+        }
+        break;
+      
+      case 'reorder':
+        // Reorder element (move to front/back)
+        const reorderIndex = this.elements.findIndex(el => el.id === message.elementId);
+        if (reorderIndex !== -1) {
+          const [element] = this.elements.splice(reorderIndex, 1);
+          if (message.position === 'front') {
+            this.elements.push(element);
+          } else if (message.position === 'back') {
+            this.elements.unshift(element);
+          }
           this.redraw();
         }
         break;
