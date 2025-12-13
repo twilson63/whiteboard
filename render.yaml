@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: whiteboard
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DATA_DIR
+        value: /var/data/whiteboard
+    disk:
+      name: whiteboard-data
+      mountPath: /var/data/whiteboard
+      sizeGB: 1

@@ -35,6 +35,19 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.use(express.json());
 
 // ============================================================
+// Health Check
+// ============================================================
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: Date.now(),
+    uptime: process.uptime(),
+    dataDir: DATA_DIR
+  });
+});
+
+// ============================================================
 // REST API for Agents
 // ============================================================
 
