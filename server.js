@@ -3,14 +3,23 @@ const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { open } = require('lmdb');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
+const DATA_DIR = process.env.DATA_DIR || './data';
 
-// Store sessions in memory
+// Initialize LMDB database
+const db = open({
+  path: DATA_DIR,
+  compression: true
+});
+
+// In-memory session cache (includes WebSocket clients)
+// Elements are persisted to LMDB, clients are transient
 const sessions = new Map();
 
 // Root route - create new session and redirect (must come before static)
@@ -32,11 +41,14 @@ app.use(express.json());
 // GET /api/sessions/:sessionId - Get session info and all elements
 app.get('/api/sessions/:sessionId', (req, res) => {
   const { sessionId } = req.params;
-  const session = sessions.get(sessionId);
   
-  if (!session) {
+  // Check if session exists in LMDB
+  const persisted = db.get(sessionId);
+  if (!persisted) {
     return res.status(404).json({ error: 'Session not found' });
   }
+  
+  const session = getOrCreateSession(sessionId);
   
   res.json({
     id: session.id,
@@ -50,23 +62,28 @@ app.get('/api/sessions/:sessionId', (req, res) => {
 // GET /api/sessions/:sessionId/elements - Get all elements
 app.get('/api/sessions/:sessionId/elements', (req, res) => {
   const { sessionId } = req.params;
-  const session = sessions.get(sessionId);
   
-  if (!session) {
+  // Check if session exists in LMDB
+  const persisted = db.get(sessionId);
+  if (!persisted) {
     return res.status(404).json({ error: 'Session not found' });
   }
   
+  const session = getOrCreateSession(sessionId);
   res.json(session.elements);
 });
 
 // GET /api/sessions/:sessionId/elements/:elementId - Get a specific element
 app.get('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
   const { sessionId, elementId } = req.params;
-  const session = sessions.get(sessionId);
   
-  if (!session) {
+  // Check if session exists in LMDB
+  const persisted = db.get(sessionId);
+  if (!persisted) {
     return res.status(404).json({ error: 'Session not found' });
   }
+  
+  const session = getOrCreateSession(sessionId);
   
   const element = session.elements.find(el => el.id === elementId);
   if (!element) {
@@ -104,6 +121,7 @@ app.post('/api/sessions/:sessionId/elements', (req, res) => {
   };
   
   session.elements.push(element);
+  saveSession(sessionId);
   
   // Broadcast to connected WebSocket clients
   broadcastAll(session, {
@@ -155,17 +173,21 @@ app.post('/api/sessions/:sessionId/elements/batch', (req, res) => {
     });
   }
   
+  saveSession(sessionId);
   res.status(201).json(createdElements);
 });
 
 // PUT /api/sessions/:sessionId/elements/:elementId - Update an element
 app.put('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
   const { sessionId, elementId } = req.params;
-  const session = sessions.get(sessionId);
   
-  if (!session) {
+  // Check if session exists in LMDB
+  const persisted = db.get(sessionId);
+  if (!persisted) {
     return res.status(404).json({ error: 'Session not found' });
   }
+  
+  const session = getOrCreateSession(sessionId);
   
   const elementIndex = session.elements.findIndex(el => el.id === elementId);
   if (elementIndex === -1) {
@@ -181,6 +203,7 @@ app.put('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
   };
   
   session.elements[elementIndex] = updatedElement;
+  saveSession(sessionId);
   
   // Broadcast to connected WebSocket clients
   broadcastAll(session, {
@@ -195,11 +218,14 @@ app.put('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
 // DELETE /api/sessions/:sessionId/elements/:elementId - Delete an element
 app.delete('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
   const { sessionId, elementId } = req.params;
-  const session = sessions.get(sessionId);
   
-  if (!session) {
+  // Check if session exists in LMDB
+  const persisted = db.get(sessionId);
+  if (!persisted) {
     return res.status(404).json({ error: 'Session not found' });
   }
+  
+  const session = getOrCreateSession(sessionId);
   
   const elementIndex = session.elements.findIndex(el => el.id === elementId);
   if (elementIndex === -1) {
@@ -207,6 +233,7 @@ app.delete('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
   }
   
   session.elements.splice(elementIndex, 1);
+  saveSession(sessionId);
   
   // Broadcast to connected WebSocket clients
   broadcastAll(session, {
@@ -220,13 +247,17 @@ app.delete('/api/sessions/:sessionId/elements/:elementId', (req, res) => {
 // DELETE /api/sessions/:sessionId/elements - Clear all elements
 app.delete('/api/sessions/:sessionId/elements', (req, res) => {
   const { sessionId } = req.params;
-  const session = sessions.get(sessionId);
   
-  if (!session) {
+  // Check if session exists in LMDB
+  const persisted = db.get(sessionId);
+  if (!persisted) {
     return res.status(404).json({ error: 'Session not found' });
   }
   
+  const session = getOrCreateSession(sessionId);
+  
   session.elements = [];
+  saveSession(sessionId);
   
   // Broadcast to connected WebSocket clients
   broadcastAll(session, {
@@ -579,14 +610,44 @@ function generateSessionId() {
 // Get or create a session
 function getOrCreateSession(sessionId) {
   if (!sessions.has(sessionId)) {
-    sessions.set(sessionId, {
-      id: sessionId,
-      elements: [],
-      clients: new Set(),
-      createdAt: Date.now()
-    });
+    // Try to load from LMDB first
+    const persisted = db.get(sessionId);
+    
+    if (persisted) {
+      // Restore from database
+      sessions.set(sessionId, {
+        id: persisted.id,
+        elements: persisted.elements || [],
+        clients: new Set(),
+        createdAt: persisted.createdAt
+      });
+      console.log(`Session ${sessionId} restored from database (${persisted.elements?.length || 0} elements)`);
+    } else {
+      // Create new session
+      const newSession = {
+        id: sessionId,
+        elements: [],
+        clients: new Set(),
+        createdAt: Date.now()
+      };
+      sessions.set(sessionId, newSession);
+      saveSession(sessionId);
+      console.log(`Session ${sessionId} created`);
+    }
   }
   return sessions.get(sessionId);
+}
+
+// Save session to LMDB (only persists serializable data)
+function saveSession(sessionId) {
+  const session = sessions.get(sessionId);
+  if (session) {
+    db.put(sessionId, {
+      id: session.id,
+      elements: session.elements,
+      createdAt: session.createdAt
+    });
+  }
 }
 
 // Broadcast message to all clients in a session except sender
@@ -671,12 +732,12 @@ wss.on('connection', (ws, req) => {
       oderId: userId
     });
 
-    // Clean up empty sessions after a delay
+    // Clean up in-memory session cache after a delay (data persists in LMDB)
     if (session.clients.size === 0) {
       setTimeout(() => {
-        if (session.clients.size === 0) {
+        if (sessions.has(sessionId) && sessions.get(sessionId).clients.size === 0) {
           sessions.delete(sessionId);
-          console.log(`Session ${sessionId} cleaned up`);
+          console.log(`Session ${sessionId} removed from memory cache (data persisted in LMDB)`);
         }
       }, 60000); // 1 minute delay
     }
@@ -695,6 +756,7 @@ function handleMessage(ws, session, message) {
         timestamp: Date.now()
       };
       session.elements.push(element);
+      saveSession(ws.sessionId);
       
       // Broadcast to other clients
       broadcast(session, {
@@ -706,6 +768,7 @@ function handleMessage(ws, session, message) {
     case 'erase':
       // Remove element from session state
       session.elements = session.elements.filter(el => el.id !== message.elementId);
+      saveSession(ws.sessionId);
       
       // Broadcast to other clients
       broadcast(session, {
@@ -717,6 +780,7 @@ function handleMessage(ws, session, message) {
     case 'clear':
       // Clear all elements
       session.elements = [];
+      saveSession(ws.sessionId);
       
       // Broadcast to other clients
       broadcast(session, {
@@ -743,6 +807,7 @@ function handleMessage(ws, session, message) {
           movedBy: ws.userId,
           movedAt: Date.now()
         };
+        saveSession(ws.sessionId);
         
         // Broadcast to other clients
         broadcast(session, {
@@ -763,6 +828,7 @@ function handleMessage(ws, session, message) {
         } else if (message.position === 'back') {
           session.elements.unshift(element);
         }
+        saveSession(ws.sessionId);
         
         // Broadcast to other clients
         broadcast(session, {
@@ -781,4 +847,5 @@ function handleMessage(ws, session, message) {
 // Start server
 server.listen(PORT, () => {
   console.log(`Whiteboard server running at http://localhost:${PORT}`);
+  console.log(`Data directory: ${path.resolve(DATA_DIR)}`);
 });
