@@ -876,4 +876,12 @@ function handleMessage(ws, session, message) {
 server.listen(PORT, () => {
   console.log(`Whiteboard server running at http://localhost:${PORT}`);
   console.log(`Data directory: ${path.resolve(DATA_DIR)}`);
+  console.log(`Database status: ${db.status}`);
+  
+  // Log existing sessions count
+  let sessionCount = 0;
+  for (const key of db.getKeys()) {
+    sessionCount++;
+  }
+  console.log(`Existing sessions in database: ${sessionCount}`);
 });

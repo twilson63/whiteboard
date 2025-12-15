@@ -7,8 +7,8 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATA_DIR
-        value: /var/data/whiteboard
+        value: /var/data
     disk:
       name: whiteboard-data
-      mountPath: /var/data/whiteboard
+      mountPath: /var/data
       sizeGB: 1
