@@ -44,6 +44,12 @@
               <line x1="5" y1="19" x2="19" y2="5"/>
             </svg>
           </button>
+          <button class="tool-btn" data-tool="arrow" title="Arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
           <button class="tool-btn" data-tool="rectangle" title="Rectangle">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -146,6 +152,25 @@
             </button>
             <button class="stroke-btn" data-stroke="8" title="Thick">
               <div class="stroke-preview" style="height: 8px"></div>
+            </button>
+          </div>
+        </div>
+
+        <div class="tool-section">
+          <span class="section-label">Arrow</span>
+          <div class="arrow-style-options">
+            <button class="arrow-style-btn active" data-arrow-style="single" title="Single-headed">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>
+            <button class="arrow-style-btn" data-arrow-style="double" title="Double-headed">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+                <polyline points="12 5 5 12 12 19"/>
+              </svg>
             </button>
           </div>
         </div>

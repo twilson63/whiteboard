@@ -14,6 +14,9 @@ class Whiteboard {
     this.currentTool = 'pen';
     this.currentColor = '#000000';
     this.strokeWidth = 4;
+    
+    // Arrow style state
+    this.arrowStyle = 'single';  // 'single' or 'double'
     this.isDrawing = false;
     this.startX = 0;
     this.startY = 0;
@@ -132,6 +135,17 @@ class Whiteboard {
     // Stroke buttons
     document.querySelectorAll('.stroke-btn').forEach(btn => {
       btn.addEventListener('click', () => this.selectStroke(parseInt(btn.dataset.stroke)));
+    });
+    
+    // Arrow style buttons
+    document.querySelectorAll('.arrow-style-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.arrowStyle = btn.dataset.arrowStyle;
+        
+        document.querySelectorAll('.arrow-style-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.arrowStyle === this.arrowStyle);
+        });
+      });
     });
     
     // Clear button
@@ -483,7 +497,7 @@ class Whiteboard {
       this.drawPenPreview();
     } else if (this.currentTool === 'eraser') {
       this.eraseAt(point);
-    } else if (['line', 'rectangle', 'circle'].includes(this.currentTool)) {
+    } else if (['line', 'arrow', 'rectangle', 'circle'].includes(this.currentTool)) {
       this.redraw();
       this.drawShapePreview(point);
     }
@@ -519,6 +533,18 @@ class Whiteboard {
         y2: point.y,
         color: this.currentColor,
         strokeWidth: this.strokeWidth
+      };
+    } else if (this.currentTool === 'arrow') {
+      element = {
+        id: this.generateId(),
+        type: 'arrow',
+        x1: this.startX,
+        y1: this.startY,
+        x2: point.x,
+        y2: point.y,
+        color: this.currentColor,
+        strokeWidth: this.strokeWidth,
+        arrowStyle: this.arrowStyle
       };
     } else if (this.currentTool === 'rectangle') {
       element = {
@@ -672,6 +698,9 @@ class Whiteboard {
       case 'line':
         this.drawLine(element);
         break;
+      case 'arrow':
+        this.drawArrow(element);
+        break;
       case 'rectangle':
         this.drawRectangle(element);
         break;
@@ -707,6 +736,20 @@ class Whiteboard {
     this.ctx.stroke();
   }
 
+  drawArrow(element) {
+    this.ctx.beginPath();
+    this.ctx.moveTo(element.x1, element.y1);
+    this.ctx.lineTo(element.x2, element.y2);
+    this.ctx.stroke();
+    
+    // Draw arrowheads based on style
+    this.ctx.fillStyle = element.color;
+    if (element.arrowStyle === 'double') {
+      this.drawArrowhead(element.x1, element.y1, element.x2, element.y2, element.strokeWidth, true);
+    }
+    this.drawArrowhead(element.x1, element.y1, element.x2, element.y2, element.strokeWidth, false);
+  }
+
   drawRectangle(element) {
     this.ctx.beginPath();
     this.ctx.strokeRect(element.x, element.y, element.width, element.height);
@@ -716,6 +759,33 @@ class Whiteboard {
     this.ctx.beginPath();
     this.ctx.arc(element.cx, element.cy, element.radius, 0, Math.PI * 2);
     this.ctx.stroke();
+  }
+
+  drawArrowhead(x1, y1, x2, y2, strokeWidth, atStart) {
+    const headLength = Math.max(10, strokeWidth * 4);
+    let angle, tipX, tipY;
+    
+    if (atStart) {
+      angle = Math.atan2(y1 - y2, x1 - x2);
+      tipX = x1;
+      tipY = y1;
+    } else {
+      angle = Math.atan2(y2 - y1, x2 - x1);
+      tipX = x2;
+      tipY = y2;
+    }
+    
+    const x3 = tipX - headLength * Math.cos(angle - Math.PI / 6);
+    const y3 = tipY - headLength * Math.sin(angle - Math.PI / 6);
+    const x4 = tipX - headLength * Math.cos(angle + Math.PI / 6);
+    const y4 = tipY - headLength * Math.sin(angle + Math.PI / 6);
+    
+    this.ctx.beginPath();
+    this.ctx.moveTo(tipX, tipY);
+    this.ctx.lineTo(x3, y3);
+    this.ctx.lineTo(x4, y4);
+    this.ctx.closePath();
+    this.ctx.fill();
   }
 
   drawNote(element) {
@@ -791,6 +861,19 @@ class Whiteboard {
       this.ctx.moveTo(this.startX, this.startY);
       this.ctx.lineTo(point.x, point.y);
       this.ctx.stroke();
+    } else if (this.currentTool === 'arrow') {
+      // Draw line
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.startX, this.startY);
+      this.ctx.lineTo(point.x, point.y);
+      this.ctx.stroke();
+      
+      // Draw arrowheads
+      this.ctx.fillStyle = this.currentColor;
+      if (this.arrowStyle === 'double') {
+        this.drawArrowhead(this.startX, this.startY, point.x, point.y, this.strokeWidth, true);
+      }
+      this.drawArrowhead(this.startX, this.startY, point.x, point.y, this.strokeWidth, false);
     } else if (this.currentTool === 'rectangle') {
       this.ctx.beginPath();
       this.ctx.strokeRect(
@@ -967,6 +1050,13 @@ class Whiteboard {
         element.y2 = newY + (this.dragOriginalState.y2 - bounds.y) * scaleY;
         break;
         
+      case 'arrow':
+        element.x1 = newX + (this.dragOriginalState.x1 - bounds.x) * scaleX;
+        element.y1 = newY + (this.dragOriginalState.y1 - bounds.y) * scaleY;
+        element.x2 = newX + (this.dragOriginalState.x2 - bounds.x) * scaleX;
+        element.y2 = newY + (this.dragOriginalState.y2 - bounds.y) * scaleY;
+        break;
+        
       case 'pen':
         // Scale all pen points
         element.points = this.dragOriginalState.points.map(p => ({
@@ -1073,6 +1163,14 @@ class Whiteboard {
           height: Math.abs(element.y2 - element.y1)
         };
       
+      case 'arrow':
+        return {
+          x: Math.min(element.x1, element.x2),
+          y: Math.min(element.y1, element.y2),
+          width: Math.abs(element.x2 - element.x1),
+          height: Math.abs(element.y2 - element.y1)
+        };
+      
       case 'rectangle':
       case 'note':
         return { x: element.x, y: element.y, width: element.width, height: element.height };
@@ -1109,6 +1207,13 @@ class Whiteboard {
         break;
       
       case 'line':
+        element.x1 += deltaX;
+        element.y1 += deltaY;
+        element.x2 += deltaX;
+        element.y2 += deltaY;
+        break;
+      
+      case 'arrow':
         element.x1 += deltaX;
         element.y1 += deltaY;
         element.x2 += deltaX;
@@ -1493,6 +1598,13 @@ class Whiteboard {
           { x: element.x2, y: element.y2 }, 
           radius
         );
+      case 'arrow':
+        return this.isPointNearLine(
+          point,
+          { x: element.x1, y: element.y1 },
+          { x: element.x2, y: element.y2 },
+          radius
+        );
       case 'rectangle':
         return this.isPointNearRectangle(point, element, radius);
       case 'circle':
@@ -1770,6 +1882,20 @@ class Whiteboard {
         ctx.stroke();
         break;
         
+      case 'arrow':
+        ctx.beginPath();
+        ctx.moveTo(element.x1, element.y1);
+        ctx.lineTo(element.x2, element.y2);
+        ctx.stroke();
+        
+        // Draw arrowheads
+        ctx.fillStyle = element.color;
+        if (element.arrowStyle === 'double') {
+          this.drawArrowheadToContext(ctx, element.x1, element.y1, element.x2, element.y2, element.strokeWidth, true);
+        }
+        this.drawArrowheadToContext(ctx, element.x1, element.y1, element.x2, element.y2, element.strokeWidth, false);
+        break;
+        
       case 'rectangle':
         ctx.beginPath();
         ctx.strokeRect(element.x, element.y, element.width, element.height);
@@ -1822,6 +1948,33 @@ class Whiteboard {
     }
   }
 
+  drawArrowheadToContext(ctx, x1, y1, x2, y2, strokeWidth, atStart) {
+    const headLength = Math.max(10, strokeWidth * 4);
+    let angle, tipX, tipY;
+    
+    if (atStart) {
+      angle = Math.atan2(y1 - y2, x1 - x2);
+      tipX = x1;
+      tipY = y1;
+    } else {
+      angle = Math.atan2(y2 - y1, x2 - x1);
+      tipX = x2;
+      tipY = y2;
+    }
+    
+    const x3 = tipX - headLength * Math.cos(angle - Math.PI / 6);
+    const y3 = tipY - headLength * Math.sin(angle - Math.PI / 6);
+    const x4 = tipX - headLength * Math.cos(angle + Math.PI / 6);
+    const y4 = tipY - headLength * Math.sin(angle + Math.PI / 6);
+    
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(x3, y3);
+    ctx.lineTo(x4, y4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   elementToSvg(element) {
     const escape = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     
@@ -1835,6 +1988,34 @@ class Whiteboard {
         
       case 'line':
         return `  <line x1="${element.x1}" y1="${element.y1}" x2="${element.x2}" y2="${element.y2}" stroke="${element.color}" stroke-width="${element.strokeWidth}" stroke-linecap="round"/>\n`;
+        
+      case 'arrow':
+        const arrowAngle = Math.atan2(element.y2 - element.y1, element.x2 - element.x1);
+        const arrowHeadLength = Math.max(10, element.strokeWidth * 4);
+        
+        // Calculate end arrowhead points
+        const endX3 = element.x2 - arrowHeadLength * Math.cos(arrowAngle - Math.PI / 6);
+        const endY3 = element.y2 - arrowHeadLength * Math.sin(arrowAngle - Math.PI / 6);
+        const endX4 = element.x2 - arrowHeadLength * Math.cos(arrowAngle + Math.PI / 6);
+        const endY4 = element.y2 - arrowHeadLength * Math.sin(arrowAngle + Math.PI / 6);
+        
+        let arrowSvg = `  <g>
+    <line x1="${element.x1}" y1="${element.y1}" x2="${element.x2}" y2="${element.y2}" stroke="${element.color}" stroke-width="${element.strokeWidth}" stroke-linecap="round"/>
+    <polygon points="${element.x2},${element.y2} ${endX3},${endY3} ${endX4},${endY4}" fill="${element.color}"/>`;
+        
+        if (element.arrowStyle === 'double') {
+          const startAngle = Math.atan2(element.y1 - element.y2, element.x1 - element.x2);
+          const startX3 = element.x1 - arrowHeadLength * Math.cos(startAngle - Math.PI / 6);
+          const startY3 = element.y1 - arrowHeadLength * Math.sin(startAngle - Math.PI / 6);
+          const startX4 = element.x1 - arrowHeadLength * Math.cos(startAngle + Math.PI / 6);
+          const startY4 = element.y1 - arrowHeadLength * Math.sin(startAngle + Math.PI / 6);
+          arrowSvg += `
+    <polygon points="${element.x1},${element.y1} ${startX3},${startY3} ${startX4},${startY4}" fill="${element.color}"/>`;
+        }
+        
+        arrowSvg += `
+  </g>\n`;
+        return arrowSvg;
         
       case 'rectangle':
         return `  <rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" stroke="${element.color}" stroke-width="${element.strokeWidth}" fill="none"/>\n`;

@@ -118,7 +118,7 @@ app.post('/api/sessions/:sessionId/elements', (req, res) => {
     return res.status(400).json({ error: 'Element type is required' });
   }
   
-  const validTypes = ['rectangle', 'circle', 'line', 'pen', 'text', 'note'];
+  const validTypes = ['rectangle', 'circle', 'line', 'arrow', 'pen', 'text', 'note'];
   if (!validTypes.includes(elementData.type)) {
     return res.status(400).json({ 
       error: `Invalid element type. Must be one of: ${validTypes.join(', ')}` 
@@ -156,7 +156,7 @@ app.post('/api/sessions/:sessionId/elements/batch', (req, res) => {
     return res.status(400).json({ error: 'Request body must be an array of elements' });
   }
   
-  const validTypes = ['rectangle', 'circle', 'line', 'pen', 'text', 'note'];
+  const validTypes = ['rectangle', 'circle', 'line', 'arrow', 'pen', 'text', 'note'];
   const createdElements = [];
   
   for (const elementData of elementsData) {
@@ -325,6 +325,21 @@ app.get('/api/schema', (req, res) => {
           strokeWidth: { type: 'number', default: 2, description: 'Stroke width in pixels' }
         },
         example: { type: 'line', x1: 50, y1: 50, x2: 200, y2: 150, color: '#2ecc71', strokeWidth: 2 }
+      },
+      arrow: {
+        description: 'Arrow with directional head(s)',
+        required: ['type', 'x1', 'y1', 'x2', 'y2'],
+        properties: {
+          type: { type: 'string', value: 'arrow' },
+          x1: { type: 'number', description: 'Starting X position' },
+          y1: { type: 'number', description: 'Starting Y position' },
+          x2: { type: 'number', description: 'Ending X position' },
+          y2: { type: 'number', description: 'Ending Y position' },
+          color: { type: 'string', default: '#000000', description: 'Arrow color (hex)' },
+          strokeWidth: { type: 'number', default: 2, description: 'Stroke width in pixels' },
+          arrowStyle: { type: 'string', default: 'single', description: 'Arrow style: "single" or "double"' }
+        },
+        example: { type: 'arrow', x1: 50, y1: 50, x2: 200, y2: 150, color: '#2ecc71', strokeWidth: 2, arrowStyle: 'single' }
       },
       pen: {
         description: 'Freehand drawing (series of points)',
@@ -497,6 +512,42 @@ Then view at: ${baseUrl}/my-session
 | color | string | no | Line color hex (default: #000000) |
 | strokeWidth | number | no | Line thickness (default: 2) |
 
+### Arrow
+
+\`\`\`json
+{
+  "type": "arrow",
+  "x1": 50,
+  "y1": 50,
+  "x2": 200,
+  "y2": 150,
+  "color": "#2ecc71",
+  "strokeWidth": 2,
+  "arrowStyle": "single"
+}
+\`\`\`
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| type | string | yes | Must be "arrow" |
+| x1 | number | yes | Starting X position |
+| y1 | number | yes | Starting Y position |
+| x2 | number | yes | Ending X position |
+| y2 | number | yes | Ending Y position |
+| color | string | no | Arrow color hex (default: #000000) |
+| strokeWidth | number | no | Line thickness (default: 2) |
+| arrowStyle | string | no | "single" (head at end) or "double" (heads at both ends) |
+
+#### Single-headed Arrow (default)
+\`\`\`json
+{"type": "arrow", "x1": 100, "y1": 100, "x2": 250, "y2": 100, "color": "#3498db", "strokeWidth": 2, "arrowStyle": "single"}
+\`\`\`
+
+#### Double-headed Arrow
+\`\`\`json
+{"type": "arrow", "x1": 100, "y1": 150, "x2": 250, "y2": 150, "color": "#e74c3c", "strokeWidth": 2, "arrowStyle": "double"}
+\`\`\`
+
 ### Pen (Freehand)
 
 \`\`\`json
@@ -612,10 +663,10 @@ curl -X POST ${baseUrl}/api/sessions/my-flowchart/elements/batch \\
   -d '[
     {"type":"rectangle","x":300,"y":100,"width":120,"height":50,"color":"#3498db","strokeWidth":2},
     {"type":"text","x":330,"y":130,"text":"Start","fontSize":16,"color":"#2c3e50"},
-    {"type":"line","x1":360,"y1":150,"x2":360,"y2":200,"color":"#333333","strokeWidth":2},
+    {"type":"arrow","x1":360,"y1":150,"x2":360,"y2":200,"color":"#333333","strokeWidth":2,"arrowStyle":"single"},
     {"type":"rectangle","x":300,"y":200,"width":120,"height":50,"color":"#2ecc71","strokeWidth":2},
     {"type":"text","x":320,"y":230,"text":"Process","fontSize":16,"color":"#2c3e50"},
-    {"type":"line","x1":360,"y1":250,"x2":360,"y2":300,"color":"#333333","strokeWidth":2},
+    {"type":"arrow","x1":360,"y1":250,"x2":360,"y2":300,"color":"#333333","strokeWidth":2,"arrowStyle":"single"},
     {"type":"rectangle","x":300,"y":300,"width":120,"height":50,"color":"#e74c3c","strokeWidth":2},
     {"type":"text","x":340,"y":330,"text":"End","fontSize":16,"color":"#2c3e50"}
   ]'
