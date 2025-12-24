@@ -78,6 +78,7 @@ class Whiteboard {
   init() {
     this.setupCanvas();
     this.setupEventListeners();
+    this.updateContextualOptions(this.currentTool);
     this.connectWebSocket();
     this.updateSessionDisplay();
     this.updateUndoRedoButtons();
@@ -327,6 +328,27 @@ class Whiteboard {
       this.canvasContainer.classList.add('eraser-mode');
     } else if (tool === 'select') {
       this.canvasContainer.classList.add('select-mode');
+    }
+
+    this.updateContextualOptions(tool);
+  }
+
+  updateContextualOptions(tool) {
+    document.querySelectorAll('.context-options').forEach(el => {
+      el.classList.remove('visible');
+    });
+    
+    const contextMap = {
+      'arrow': 'arrow',
+      'select': 'select'
+    };
+    
+    const context = contextMap[tool];
+    if (context) {
+      const contextEl = document.querySelector(`.context-options[data-context="${context}"]`);
+      if (contextEl) {
+        contextEl.classList.add('visible');
+      }
     }
   }
 

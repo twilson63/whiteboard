@@ -420,6 +420,51 @@ curl -X POST ${baseUrl}/api/sessions/my-session/elements \\
 
 Then view at: ${baseUrl}/my-session
 
+## User Interface
+
+The whiteboard features a horizontal toolbar design for easy access to all tools.
+
+### Primary Toolbar (Top Row)
+
+| Group | Contents |
+|-------|----------|
+| Brand | Logo, Session ID |
+| History | Undo, Redo |
+| Drawing Tools | Select, Pen, Line, Arrow, Rectangle, Circle, Note, Text |
+| Edit Tools | Eraser, Clear All |
+| Session | User count, Share button |
+
+### Options Bar (Second Row)
+
+| Group | Contents |
+|-------|----------|
+| Colors | 8 preset colors (Black, Red, Blue, Green, Orange, Purple, Teal, Dark Gray) |
+| Stroke | Thin (2px), Medium (4px), Thick (8px) |
+| Contextual | Tool-specific options (e.g., arrow style when arrow tool selected) |
+| Zoom | Zoom out, percentage, Zoom in, Reset |
+| Export | PNG, SVG export buttons |
+
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| V | Select tool |
+| P | Pen tool |
+| L | Line tool |
+| A | Arrow tool |
+| R | Rectangle tool |
+| C | Circle tool |
+| N | Note tool |
+| T | Text tool |
+| E | Eraser tool |
+| Delete | Delete selected element |
+| Ctrl+Z | Undo |
+| Ctrl+Shift+Z | Redo |
+| Ctrl++ | Zoom in |
+| Ctrl+- | Zoom out |
+| Ctrl+0 | Reset zoom |
+| Space+Drag | Pan canvas |
+
 ## Coordinate System
 
 - **Origin:** Top-left corner (0, 0)
