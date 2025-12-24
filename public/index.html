@@ -8,59 +8,69 @@
 </head>
 <body>
   <div class="app">
-    <!-- Header -->
     <header class="header">
-      <div class="header-left">
-        <h1 class="logo">Whiteboard</h1>
-        <span class="session-id" id="sessionId"></span>
-      </div>
-      <div class="header-right">
-        <span class="user-count" id="userCount">Users: 1</span>
-        <button class="btn btn-share" id="shareBtn">Share Link</button>
-      </div>
-    </header>
-
-    <!-- Main content -->
-    <div class="main">
-      <!-- Toolbar -->
-      <aside class="toolbar">
-        <div class="tool-section">
-          <span class="section-label">Tools</span>
-          <button class="tool-btn" data-tool="select" title="Select">
+      <!-- Row 1: Primary Toolbar -->
+      <div class="toolbar-row primary-toolbar">
+        <div class="toolbar-group brand">
+          <h1 class="logo">Whiteboard</h1>
+          <span class="session-id" id="sessionId"></span>
+        </div>
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group history">
+          <button class="tool-btn disabled" id="undoBtn" title="Undo (Ctrl+Z)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7v6h6"/>
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 13"/>
+            </svg>
+          </button>
+          <button class="tool-btn disabled" id="redoBtn" title="Redo (Ctrl+Shift+Z)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 7v6h-6"/>
+              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 13"/>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group tools">
+          <button class="tool-btn" data-tool="select" title="Select (V)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
               <path d="M13 13l6 6"/>
             </svg>
           </button>
-          <button class="tool-btn active" data-tool="pen" title="Pen">
+          <button class="tool-btn active" data-tool="pen" title="Pen (P)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 19l7-7 3 3-7 7-3-3z"/>
               <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
               <path d="M2 2l7.586 7.586"/>
             </svg>
           </button>
-          <button class="tool-btn" data-tool="line" title="Line">
+          <button class="tool-btn" data-tool="line" title="Line (L)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="5" y1="19" x2="19" y2="5"/>
             </svg>
           </button>
-          <button class="tool-btn" data-tool="arrow" title="Arrow">
+          <button class="tool-btn" data-tool="arrow" title="Arrow (A)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="5" y1="12" x2="19" y2="12"/>
               <polyline points="12 5 19 12 12 19"/>
             </svg>
           </button>
-          <button class="tool-btn" data-tool="rectangle" title="Rectangle">
+          <button class="tool-btn" data-tool="rectangle" title="Rectangle (R)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
             </svg>
           </button>
-          <button class="tool-btn" data-tool="circle" title="Circle">
+          <button class="tool-btn" data-tool="circle" title="Circle (C)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="9"/>
             </svg>
           </button>
-          <button class="tool-btn" data-tool="note" title="Sticky Note">
+          <button class="tool-btn" data-tool="note" title="Sticky Note (N)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
@@ -68,7 +78,7 @@
               <line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
           </button>
-          <button class="tool-btn" data-tool="text" title="Text">
+          <button class="tool-btn" data-tool="text" title="Text (T)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="4 7 4 4 20 4 20 7"/>
               <line x1="9" y1="20" x2="15" y2="20"/>
@@ -76,10 +86,11 @@
             </svg>
           </button>
         </div>
-
-        <div class="tool-section">
-          <span class="section-label">Edit</span>
-          <button class="tool-btn" data-tool="eraser" title="Eraser">
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group edit">
+          <button class="tool-btn" data-tool="eraser" title="Eraser (E)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8L14.8 1.4c.8-.8 2-.8 2.8 0l5 5c.8.8.8 2 0 2.8L11 20"/>
               <path d="M18 13L11 6"/>
@@ -94,41 +105,19 @@
             </svg>
           </button>
         </div>
-
-        <div class="tool-section">
-          <span class="section-label">History</span>
-          <button class="tool-btn disabled" id="undoBtn" title="Undo (Ctrl+Z)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 7v6h6"/>
-              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.36 2.64L3 13"/>
-            </svg>
-          </button>
-          <button class="tool-btn disabled" id="redoBtn" title="Redo (Ctrl+Shift+Z)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 7v6h-6"/>
-              <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 13"/>
-            </svg>
-          </button>
+        
+        <div class="toolbar-spacer"></div>
+        
+        <div class="toolbar-group session-info">
+          <span class="user-count" id="userCount">Users: 1</span>
+          <button class="btn btn-share" id="shareBtn">Share</button>
         </div>
-
-        <div class="tool-section">
-          <span class="section-label">Layer</span>
-          <button class="tool-btn" id="moveToFrontBtn" title="Move to Front">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="8" y="8" width="12" height="12" rx="1"/>
-              <path d="M4 16V6a2 2 0 0 1 2-2h10"/>
-            </svg>
-          </button>
-          <button class="tool-btn" id="moveToBackBtn" title="Move to Back">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="4" y="4" width="12" height="12" rx="1"/>
-              <path d="M8 20h10a2 2 0 0 0 2-2V8"/>
-            </svg>
-          </button>
-        </div>
-
-        <div class="tool-section">
-          <span class="section-label">Color</span>
+      </div>
+      
+      <!-- Row 2: Options Bar -->
+      <div class="toolbar-row options-bar">
+        <div class="toolbar-group colors">
+          <span class="option-label">Color</span>
           <div class="color-palette">
             <button class="color-btn active" data-color="#000000" style="background-color: #000000" title="Black"></button>
             <button class="color-btn" data-color="#e74c3c" style="background-color: #e74c3c" title="Red"></button>
@@ -140,24 +129,29 @@
             <button class="color-btn" data-color="#34495e" style="background-color: #34495e" title="Dark Gray"></button>
           </div>
         </div>
-
-        <div class="tool-section">
-          <span class="section-label">Stroke</span>
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group strokes">
+          <span class="option-label">Stroke</span>
           <div class="stroke-options">
             <button class="stroke-btn" data-stroke="2" title="Thin">
-              <div class="stroke-preview" style="height: 2px"></div>
+              <span class="stroke-preview" style="height: 2px"></span>
             </button>
             <button class="stroke-btn active" data-stroke="4" title="Medium">
-              <div class="stroke-preview" style="height: 4px"></div>
+              <span class="stroke-preview" style="height: 4px"></span>
             </button>
             <button class="stroke-btn" data-stroke="8" title="Thick">
-              <div class="stroke-preview" style="height: 8px"></div>
+              <span class="stroke-preview" style="height: 8px"></span>
             </button>
           </div>
         </div>
-
-        <div class="tool-section">
-          <span class="section-label">Arrow</span>
+        
+        <div class="toolbar-divider"></div>
+        
+        <!-- Contextual: Arrow options (hidden by default, shown when arrow tool selected) -->
+        <div class="toolbar-group arrow-options context-options" data-context="arrow">
+          <span class="option-label">Arrow</span>
           <div class="arrow-style-options">
             <button class="arrow-style-btn active" data-arrow-style="single" title="Single-headed">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -174,21 +168,40 @@
             </button>
           </div>
         </div>
-
-        <div class="tool-section">
-          <span class="section-label">Zoom</span>
+        
+        <!-- Contextual: Layer options (hidden by default, shown when select tool active and element selected) -->
+        <div class="toolbar-group layer-options context-options" data-context="select">
+          <span class="option-label">Layer</span>
+          <button class="tool-btn" id="moveToFrontBtn" title="Move to Front">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="8" y="8" width="12" height="12" rx="1"/>
+              <path d="M4 16V6a2 2 0 0 1 2-2h10"/>
+            </svg>
+          </button>
+          <button class="tool-btn" id="moveToBackBtn" title="Move to Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="4" y="4" width="12" height="12" rx="1"/>
+              <path d="M8 20h10a2 2 0 0 0 2-2V8"/>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="toolbar-spacer"></div>
+        
+        <div class="toolbar-group zoom">
+          <button class="tool-btn" id="zoomOutBtn" title="Zoom Out (Ctrl+-)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+          </button>
+          <span class="zoom-level" id="zoomLevel">100%</span>
           <button class="tool-btn" id="zoomInBtn" title="Zoom In (Ctrl++)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"/>
               <line x1="21" y1="21" x2="16.65" y2="16.65"/>
               <line x1="11" y1="8" x2="11" y2="14"/>
-              <line x1="8" y1="11" x2="14" y2="11"/>
-            </svg>
-          </button>
-          <button class="tool-btn" id="zoomOutBtn" title="Zoom Out (Ctrl+-)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
               <line x1="8" y1="11" x2="14" y2="11"/>
             </svg>
           </button>
@@ -198,11 +211,11 @@
               <line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
           </button>
-          <span class="zoom-level" id="zoomLevel">100%</span>
         </div>
-
-        <div class="tool-section">
-          <span class="section-label">Export</span>
+        
+        <div class="toolbar-divider"></div>
+        
+        <div class="toolbar-group export">
           <button class="tool-btn" id="exportPngBtn" title="Export as PNG">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -218,9 +231,10 @@
             </svg>
           </button>
         </div>
-      </aside>
+      </div>
+    </header>
 
-      <!-- Canvas container -->
+    <div class="main">
       <div class="canvas-container" id="canvasContainer">
         <canvas id="whiteboard"></canvas>
       </div>

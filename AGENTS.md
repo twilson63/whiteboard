@@ -115,6 +115,13 @@ No test framework is currently configured. Before implementing new features, add
 - Transitions for smooth UI changes
 - CSS variables for consistent theming
 
+**Toolbar Classes:**
+- `.toolbar-row` - Flex row for toolbar items
+- `.primary-toolbar` - Top row with tools
+- `.options-bar` - Second row with options
+- `.toolbar-group` - Container for related buttons
+- `.context-options` - Contextual options, use `.visible` to show
+
 **Color Format:**
 - Use hex colors (#000000 format)
 - Define all colors in `:root` variables
@@ -123,9 +130,18 @@ No test framework is currently configured. Before implementing new features, add
 
 **Structure:**
 - Use semantic HTML5 elements
-- Include meta viewport tag for mobile: `<meta name="viewport" content="width=device-width, initial-scale=1.0">`
+- Header contains two toolbar rows: primary-toolbar and options-bar
+- Primary toolbar: brand, history, tools, edit, session info
+- Options bar: colors, stroke, contextual options, zoom, export
+- Use `data-context` attribute for contextual option groups
 - Place `<script>` at end of body
-- Use data attributes for element metadata: `data-tool`, `data-color`, `data-stroke`
+
+**Toolbar Organization:**
+- `.toolbar-row` - Horizontal row container
+- `.toolbar-group` - Groups related buttons
+- `.toolbar-divider` - Visual separator between groups
+- `.toolbar-spacer` - Flexible space to push items to edges
+- `.context-options` - Hidden by default, shown based on active tool
 
 **Accessibility:**
 - Include `title` attributes on buttons for tooltips
@@ -193,3 +209,25 @@ No test framework is currently configured. Before implementing new features, add
 - Use try-catch for JSON parsing
 - Show toast notifications for user feedback
 - Handle missing elements gracefully
+
+### Keyboard Shortcuts
+
+**Tool Selection:**
+- V - Select tool
+- P - Pen tool
+- L - Line tool
+- A - Arrow tool
+- R - Rectangle tool
+- C - Circle tool
+- N - Note tool
+- T - Text tool
+- E - Eraser tool
+
+**Actions:**
+- Ctrl+Z - Undo
+- Ctrl+Shift+Z / Ctrl+Y - Redo
+- Delete/Backspace - Delete selected element
+- Ctrl++ - Zoom in
+- Ctrl+- - Zoom out
+- Ctrl+0 - Reset zoom
+- Space+Drag - Pan canvas
