@@ -508,10 +508,14 @@ body {
 }
 
 /* Pan mode cursor */
+.canvas-container.pan-mode,
 .canvas-container.pan-mode #whiteboard {
   cursor: grab;
 }
 
+.canvas-container.pan-mode.panning,
+.canvas-container.pan-mode.panning #whiteboard,
+.canvas-container.panning,
 .canvas-container.panning #whiteboard {
   cursor: grabbing;
 }

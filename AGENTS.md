@@ -1,233 +1,168 @@
 # AGENTS.md
 
-## Build Commands
+## Build & Run Commands
 
-- `npm start` - Start production server
-- `npm run dev` - Start development server with auto-reload (uses `node --watch`)
+```bash
+npm start          # Start production server (port 3000)
+npm run dev        # Development server with auto-reload (node --watch)
+```
 
 ## Testing
 
-No test framework is currently configured. Before implementing new features, add an appropriate test framework and write tests to ensure code quality.
+No test framework configured. Add tests before implementing new features.
+
+## Project Structure
+
+```
+server.js           # Express server + WebSocket handler + LMDB persistence
+public/
+  app.js            # Frontend Whiteboard class (~2200 lines)
+  index.html        # Main HTML template
+  styles.css        # All styling rules
+```
 
 ## Code Style Guidelines
 
-### Node.js Backend (server.js)
+### Module System
+- **Backend:** CommonJS `require()` only - no ES6 import/export
+- **Frontend:** Class-based architecture (single Whiteboard class)
 
-**Module System:**
-- Use CommonJS `require()` syntax (already established in codebase)
-- Avoid ES6 import/export statements
-
-**Express.js Patterns:**
-- Use RESTful routing patterns with Express
-- Routes are organized: root routes first, static files, then API routes
-- Session routes come last to avoid conflicts
-
-**Error Handling:**
-- Return proper HTTP status codes:
-  - 400 for invalid input
-  - 404 for missing resources (sessions/elements)
-  - 500 for server errors
-- Use consistent JSON error format: `{ error: "message" }`
-- Always validate input before processing
-
-**WebSocket Messages:**
-- All WebSocket messages must be JSON with a `type` field
-- Use `JSON.parse()`/`JSON.stringify()` for message handling
-- Broadcast messages to other clients, optionally exclude sender
-
-**Database Operations:**
-- Use LMDB for persistent storage
-- Use in-memory Map for session state with WebSocket clients
-- Save changes to LMDB immediately after modifying elements
-- Clean up in-memory sessions after 1 minute of inactivity
-
-**Naming:**
-- Functions: camelCase (`handleMessage`, `saveSession`)
-- Constants: UPPER_SNAKE_CASE (`PORT`, `DATA_DIR`)
-- Classes: PascalCase (none currently, use if adding)
-
-**Validation:**
-- Validate all API input (element types, required fields)
-- Valid element types: `['rectangle', 'circle', 'line', 'arrow', 'pen', 'text', 'note']`
-- Check session existence before modifying elements
-
-### Frontend JavaScript (public/app.js)
-
-**Architecture:**
-- Use class-based architecture (Whiteboard class)
-- Single class pattern with method organization using comment sections
-- Event-driven programming with `addEventListener`
-
-**Canvas API:**
-- Use proper coordinate transformations for zoom/pan
-- Account for device pixel ratio: `window.devicePixelRatio`
-- Use `ctx.save()` and `ctx.restore()` for temporary state changes
-- Clear and redraw canvas on state changes
-- Set `lineCap` and `lineJoin` to 'round' for smooth strokes
-
-**State Management:**
-- Store elements in `this.elements` array
-- Undo/redo stacks with max 50 entries
-- Selection state: `this.selectedElement`, `this.isDragging`
-- Zoom/pan state: `this.scale`, `this.offsetX`, `this.offsetY`
-
-**Event Handling:**
-- Handle both mouse and touch events for mobile support
-- Prevent default on touch events to avoid scrolling
-- Throttle cursor position updates (50ms) to reduce WebSocket traffic
-- Support keyboard shortcuts (Ctrl+Z, Ctrl+Y, Ctrl+/-/0, Space)
-
-**WebSocket Communication:**
-- Auto-reconnect on disconnect (3 second delay)
-- Send JSON messages with `type` field
-- Handle message types: `draw`, `erase`, `clear`, `move`, `reorder`, `cursor`, `userCount`, `userLeft`
-- Use `sendMessage()` wrapper for WebSocket communication
-
-**Naming:**
-- Classes: PascalCase (`Whiteboard`)
-- Methods: camelCase (`handleMouseDown`, `drawRectangle`)
-- Constants: UPPER_SNAKE_CASE (`maxHistorySize` - rare in this codebase)
-- Event handlers: prefix with `handle` (`handleMouseDown`)
-- Drawing methods: prefix with `draw` (`drawRectangle`, `drawElement`)
-
-**Element Structure:**
-- All elements require `id` (use `this.generateId()` or `uuid`)
-- Required fields vary by type:
-  - rectangle: `type`, `x`, `y`, `width`, `height`
-  - circle: `type`, `cx`, `cy`, `radius`
-  - line: `type`, `x1`, `y1`, `x2`, `y2`
-  - arrow: `type`, `x1`, `y1`, `x2`, `y2`, `arrowStyle` ('single' or 'double')
-  - pen: `type`, `points` (array of {x, y})
-  - text: `type`, `x`, `y`, `text`
-  - note: `type`, `x`, `y`, `width`, `height`, `text`
-- Optional: `color` (default '#000000'), `strokeWidth` (default 2)
-
-### CSS (public/styles.css)
-
-**Organization:**
-- Use CSS custom properties (variables) in `:root` for colors
-- Class naming: kebab-case (`.tool-btn`, `.color-palette`)
-- Use semantic HTML structure with `<header>`, `<aside>`, etc.
-
-**Styling:**
-- Use flexbox for layout
-- Responsive design with `@media` queries
-- Transitions for smooth UI changes
-- CSS variables for consistent theming
-
-**Toolbar Classes:**
-- `.toolbar-row` - Flex row for toolbar items
-- `.primary-toolbar` - Top row with tools
-- `.options-bar` - Second row with options
-- `.toolbar-group` - Container for related buttons
-- `.context-options` - Contextual options, use `.visible` to show
-
-**Color Format:**
-- Use hex colors (#000000 format)
-- Define all colors in `:root` variables
-
-### HTML (public/index.html)
-
-**Structure:**
-- Use semantic HTML5 elements
-- Header contains two toolbar rows: primary-toolbar and options-bar
-- Primary toolbar: brand, history, tools, edit, session info
-- Options bar: colors, stroke, contextual options, zoom, export
-- Use `data-context` attribute for contextual option groups
-- Place `<script>` at end of body
-
-**Toolbar Organization:**
-- `.toolbar-row` - Horizontal row container
-- `.toolbar-group` - Groups related buttons
-- `.toolbar-divider` - Visual separator between groups
-- `.toolbar-spacer` - Flexible space to push items to edges
-- `.context-options` - Hidden by default, shown based on active tool
-
-**Accessibility:**
-- Include `title` attributes on buttons for tooltips
-- Use proper button elements, not divs
-
-### General Conventions
-
-**Variables/Functions:** camelCase (`currentTool`, `handleMouseDown`)
-**Classes:** PascalCase (`Whiteboard`)
-**Constants:** UPPER_SNAKE_CASE (`PORT`, `DATA_DIR`)
-**Colors:** Hex format (#000000)
-**Element IDs:** Use uuid library or generateId() method
-**Console:** Use console.log for debugging (remove in production)
-
-### File Structure
-
-- `server.js` - Main Express server and WebSocket handler
-- `public/app.js` - Frontend whiteboard application (Whiteboard class)
-- `public/index.html` - Main HTML template
-- `public/styles.css` - All styling rules
-
-### API Patterns
-
-**REST Endpoints:**
-- `GET /api/sessions/:sessionId` - Get session info and all elements
-- `GET /api/sessions/:sessionId/elements` - Get all elements
-- `GET /api/sessions/:sessionId/elements/:elementId` - Get specific element
-- `POST /api/sessions/:sessionId/elements` - Create single element
-- `POST /api/sessions/:sessionId/elements/batch` - Create multiple elements
-- `PUT /api/sessions/:sessionId/elements/:elementId` - Update element
-- `DELETE /api/sessions/:sessionId/elements/:elementId` - Delete element
-- `DELETE /api/sessions/:sessionId/elements` - Clear all elements
-- `GET /api/schema` - Element schema documentation
-- `GET /api/agent` - Comprehensive API guide (returns markdown)
-
-**WebSocket Messages:**
-- `draw` - Add element
-- `erase` - Remove element by ID
-- `clear` - Clear all elements
-- `move` - Update element position
-- `reorder` - Move element to front/back
-- `cursor` - Share cursor position
-- `userCount` - Update user count
-- `userLeft` - User left session
-
-**Session Management:**
-- Session IDs extracted from URL path (`/sessionId`)
-- WebSocket connections pass session as query param: `?session=sessionId`
-- Sessions persist in LMDB, active clients in Map
-- Clean up empty sessions after 60 seconds
+### Naming Conventions
+| Type | Convention | Examples |
+|------|------------|----------|
+| Functions/Methods | camelCase | `handleMouseDown`, `saveSession` |
+| Classes | PascalCase | `Whiteboard` |
+| Constants | UPPER_SNAKE_CASE | `PORT`, `DATA_DIR` |
+| Event handlers | `handle` prefix | `handleMouseDown`, `handleTouchStart` |
+| Drawing methods | `draw` prefix | `drawRectangle`, `drawElement` |
+| CSS classes | kebab-case | `.tool-btn`, `.color-palette` |
 
 ### Error Handling
 
-**API Errors:**
-- Always return JSON with `error` field
-- Use appropriate HTTP status codes
-- Validate input before processing
+**Backend (server.js):**
+```javascript
+// Always return JSON with error field
+res.status(400).json({ error: 'Invalid input message' });
+res.status(404).json({ error: 'Session not found' });
+res.status(500).json({ error: 'Internal server error' });
+```
 
-**WebSocket Errors:**
-- Log errors with `console.error()`
-- Attempt reconnection on disconnect
-- Gracefully handle malformed JSON
-
-**Frontend Errors:**
+**Frontend (app.js):**
 - Use try-catch for JSON parsing
-- Show toast notifications for user feedback
+- Show toast notifications: `this.showToast('Error message')`
 - Handle missing elements gracefully
 
-### Keyboard Shortcuts
+### WebSocket Messages
 
-**Tool Selection:**
-- V - Select tool
-- P - Pen tool
-- L - Line tool
-- A - Arrow tool
-- R - Rectangle tool
-- C - Circle tool
-- N - Note tool
-- T - Text tool
-- E - Eraser tool
+All messages must be JSON with a `type` field:
+```javascript
+// Send
+this.sendMessage({ type: 'draw', element: element });
 
-**Actions:**
-- Ctrl+Z - Undo
-- Ctrl+Shift+Z / Ctrl+Y - Redo
-- Delete/Backspace - Delete selected element
-- Ctrl++ - Zoom in
-- Ctrl+- - Zoom out
-- Ctrl+0 - Reset zoom
-- Space+Drag - Pan canvas
+// Receive
+const message = JSON.parse(event.data);
+switch (message.type) {
+  case 'draw': // ...
+  case 'erase': // ...
+}
+```
+
+**Message Types:** `draw`, `erase`, `clear`, `move`, `reorder`, `cursor`, `userCount`, `userLeft`, `init`
+
+### Element Structure
+
+All elements require an `id` (use `this.generateId()` or `uuidv4()`).
+
+| Type | Required Fields |
+|------|-----------------|
+| rectangle | `type`, `x`, `y`, `width`, `height` |
+| circle | `type`, `cx`, `cy`, `radius` |
+| line | `type`, `x1`, `y1`, `x2`, `y2` |
+| arrow | `type`, `x1`, `y1`, `x2`, `y2`, `arrowStyle` ('single'/'double') |
+| pen | `type`, `points` (array of {x, y}) |
+| text | `type`, `x`, `y`, `text`, `fontSize` |
+| note | `type`, `x`, `y`, `width`, `height`, `text` |
+
+**Optional fields:** `color` (default '#000000'), `strokeWidth` (default 2)
+
+**Valid types array:** `['rectangle', 'circle', 'line', 'arrow', 'pen', 'text', 'note']`
+
+### Canvas Rendering
+
+```javascript
+// Always use save/restore for temporary state
+this.ctx.save();
+this.ctx.strokeStyle = element.color;
+// ... draw operations
+this.ctx.restore();
+
+// Account for device pixel ratio
+const dpr = window.devicePixelRatio || 1;
+
+// Use round caps for smooth strokes
+this.ctx.lineCap = 'round';
+this.ctx.lineJoin = 'round';
+```
+
+### State Management (Frontend)
+
+- Elements: `this.elements` array
+- Undo/Redo: `this.undoStack`, `this.redoStack` (max 50 entries)
+- Selection: `this.selectedElement`, `this.isDragging`
+- Zoom/Pan: `this.scale`, `this.offsetX`, `this.offsetY`
+- Remote cursors: `this.remoteCursors` Map
+
+### Database (Backend)
+
+- LMDB for persistence, in-memory Map for active sessions
+- Save immediately after modifications: `saveSession(sessionId)`
+- Clean up empty sessions after 60 seconds of inactivity
+
+## REST API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/sessions/:sessionId` | Get session info and elements |
+| GET | `/api/sessions/:sessionId/elements` | Get all elements |
+| GET | `/api/sessions/:sessionId/elements/:id` | Get specific element |
+| POST | `/api/sessions/:sessionId/elements` | Create element |
+| POST | `/api/sessions/:sessionId/elements/batch` | Create multiple elements |
+| PUT | `/api/sessions/:sessionId/elements/:id` | Update element |
+| DELETE | `/api/sessions/:sessionId/elements/:id` | Delete element |
+| DELETE | `/api/sessions/:sessionId/elements` | Clear all elements |
+| GET | `/api/schema` | Element schema documentation |
+| GET | `/api/agent` | Comprehensive API guide (markdown) |
+
+## Keyboard Shortcuts
+
+**Tools:** H (Pan/Hand), V (Select), P (Pen), L (Line), A (Arrow), R (Rectangle), C (Circle), N (Note), T (Text), E (Eraser)
+
+**Actions:** Ctrl+Z (Undo), Ctrl+Shift+Z/Ctrl+Y (Redo), Delete (Delete selected), Ctrl++/- (Zoom), Ctrl+0 (Reset zoom), Space+Drag (Pan)
+
+## CSS Organization
+
+- CSS variables in `:root` for theming
+- Toolbar structure: `.toolbar-row` > `.toolbar-group` > `.tool-btn`
+- Contextual options: `.context-options[data-context="arrow"]` with `.visible` class
+- Use flexbox for layouts, transitions for animations
+
+## Key Patterns
+
+### Adding a New Tool
+1. Add button in `index.html` with `data-tool="toolname"`
+2. Add case in `selectTool()` method
+3. Handle in `startDrawing()`, `continueDrawing()`, `endDrawing()`
+4. Add drawing method `drawToolname()` and `drawElement()` case
+5. Update `isPointNearElement()` for hit detection
+6. Add to valid types array in server.js
+
+### Adding a New Element Property
+1. Update element creation in frontend
+2. Update `drawElement()` to use the property
+3. Update server.js validation if needed
+4. Update `/api/schema` endpoint documentation
+
+### Touch/Mobile Support
+- Handle both mouse and touch events
+- Prevent default on touch to avoid scrolling
+- Throttle cursor updates (50ms) to reduce WebSocket traffic

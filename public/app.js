@@ -226,6 +226,42 @@ class Whiteboard {
         return;
       }
       
+      // Tool keyboard shortcuts
+      if (!e.ctrlKey && !e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case 'h':
+            this.selectTool('pan');
+            return;
+          case 'v':
+            this.selectTool('select');
+            return;
+          case 'p':
+            this.selectTool('pen');
+            return;
+          case 'l':
+            this.selectTool('line');
+            return;
+          case 'a':
+            this.selectTool('arrow');
+            return;
+          case 'r':
+            this.selectTool('rectangle');
+            return;
+          case 'c':
+            this.selectTool('circle');
+            return;
+          case 'n':
+            this.selectTool('note');
+            return;
+          case 't':
+            this.selectTool('text');
+            return;
+          case 'e':
+            this.selectTool('eraser');
+            return;
+        }
+      }
+      
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -323,11 +359,13 @@ class Whiteboard {
     });
     
     // Update cursor mode
-    this.canvasContainer.classList.remove('eraser-mode', 'select-mode', 'dragging');
+    this.canvasContainer.classList.remove('eraser-mode', 'select-mode', 'pan-mode', 'dragging');
     if (tool === 'eraser') {
       this.canvasContainer.classList.add('eraser-mode');
     } else if (tool === 'select') {
       this.canvasContainer.classList.add('select-mode');
+    } else if (tool === 'pan') {
+      this.canvasContainer.classList.add('pan-mode');
     }
 
     this.updateContextualOptions(tool);
@@ -393,8 +431,8 @@ class Whiteboard {
   }
 
   handleMouseDown(e) {
-    // Handle pan mode (space + drag or middle mouse button)
-    if (this.spacePressed || e.button === 1) {
+    // Handle pan tool OR space + drag OR middle mouse button
+    if (this.currentTool === 'pan' || this.spacePressed || e.button === 1) {
       this.isPanning = true;
       this.panStartX = e.clientX - this.offsetX;
       this.panStartY = e.clientY - this.offsetY;
